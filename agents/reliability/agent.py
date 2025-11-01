@@ -12,11 +12,11 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import uuid
 
-from ...shared.models import (
+from shared.models import (
     AssessmentInput, AssessmentResult, Finding, Recommendation,
     PillarType, SeverityLevel, AzureService, AzureDocReference
 )
-from ...shared.utils.azure_docs import AzureDocsSearcher
+from shared.utils.azure_docs import AzureDocsSearcher
 
 logger = logging.getLogger(__name__)
 

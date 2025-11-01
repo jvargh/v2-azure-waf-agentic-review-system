@@ -13,7 +13,7 @@ import os
 from datetime import datetime, timedelta
 import json
 
-from ..models import AzureDocReference
+from shared.models import AzureDocReference
 
 logger = logging.getLogger(__name__)
 

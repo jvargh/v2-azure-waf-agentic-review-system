@@ -9,8 +9,8 @@ import os
 from pathlib import Path
 from typing import Dict, Any
 
-from .agent import ReliabilityFrameworkAgent
-from ...shared.models import (
+from agents.reliability.agent import ReliabilityFrameworkAgent
+from shared.models import (
     AssessmentInput, ArchitectureDocument, DiagramFindings, 
     IncidentPattern, NonFunctionalRequirement, AzureService, 
     SeverityLevel

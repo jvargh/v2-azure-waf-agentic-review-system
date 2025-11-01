@@ -1,0 +1,204 @@
+{
+  "pillar": "reliability",
+  "overall_score": 79.5,
+  "subscores": {
+    "high_availability": 70.0,
+    "disaster_recovery": 80.0,
+    "fault_tolerance": 90.0,
+    "backup_restore": 80.0,
+    "monitoring": 80.0
+  },
+  "findings": [
+    {
+      "id": "e57c5b54-ec78-457c-a247-519ba387b6d5",
+      "title": "Single-zone deployments detected",
+      "description": "Services deployed in single zones create availability risk: ['web-app-01', 'sql-db-01', 'storage-01']",
+      "severity": "high",
+      "pillar": "reliability",
+      "affected_services": [
+        "web-app-01",
+        "sql-db-01",
+        "storage-01"
+      ],
+      "evidence": [
+        "Architecture analysis shows single-zone deployment"
+      ],
+      "azure_docs": []
+    },
+    {
+      "id": "f5fcce92-e628-40d4-8f8c-9b788c0f7a74",
+      "title": "Missing load balancers for high availability",
+      "description": "Services without load balancers: ['web-app-01']",
+      "severity": "medium",
+      "pillar": "reliability",
+      "affected_services": [
+        "web-app-01"
+      ],
+      "evidence": [
+        "Architecture review shows compute services without load balancing"
+      ],
+      "azure_docs": []
+    },
+    {
+      "id": "d9e5236a-4db3-46e3-81a3-b76f1335ca56",
+      "title": "Aggressive RTO requires active-active deployment",
+      "description": "RTO of 0.5 hours requires active-active cross-region setup",
+      "severity": "high",
+      "pillar": "reliability",
+      "affected_services": [],
+      "evidence": [
+        "Declared RTO: 0.5 hours"
+      ],
+      "azure_docs": []
+    },
+    {
+      "id": "dede466b-a864-49f1-b898-e03979a96761",
+      "title": "Single-region deployment increases DR risk",
+      "description": "Workload deployed in single region lacks disaster recovery resilience",
+      "severity": "high",
+      "pillar": "reliability",
+      "affected_services": [
+        "web-app-01",
+        "sql-db-01",
+        "storage-01"
+      ],
+      "evidence": [
+        "All services deployed in single region"
+      ],
+      "azure_docs": []
+    },
+    {
+      "id": "74978542-79cd-44a7-a498-ef3f47cb9e0d",
+      "title": "Missing asynchronous messaging patterns",
+      "description": "No messaging services detected for decoupling and resilience",
+      "severity": "medium",
+      "pillar": "reliability",
+      "affected_services": [],
+      "evidence": [
+        "Architecture analysis shows direct service coupling"
+      ],
+      "azure_docs": []
+    },
+    {
+      "id": "766a8edb-018b-4e28-8ace-34b6ace87972",
+      "title": "Missing backup strategy for data services",
+      "description": "Data services detected without corresponding backup solutions",
+      "severity": "high",
+      "pillar": "reliability",
+      "affected_services": [
+        "sql-db-01",
+        "storage-01"
+      ],
+      "evidence": [
+        "Data services without backup configuration"
+      ],
+      "azure_docs": []
+    },
+    {
+      "id": "09df360f-9826-43ef-b9f7-0124d9909fc0",
+      "title": "Missing comprehensive monitoring solution",
+      "description": "No monitoring services detected for observability",
+      "severity": "high",
+      "pillar": "reliability",
+      "affected_services": [],
+      "evidence": [
+        "Architecture analysis shows no monitoring components"
+      ],
+      "azure_docs": []
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "fae8f2a6-23ba-4d7a-9744-cc00b362b0e3",
+      "title": "Implement zone-redundant deployments",
+      "description": "Deploy critical services across multiple availability zones to improve resilience",
+      "priority": 1,
+      "effort_estimate": "medium",
+      "impact_score": 8.0,
+      "likelihood_score": 7.0,
+      "pillar": "reliability",
+      "related_findings": [
+        "e57c5b54-ec78-457c-a247-519ba387b6d5"
+      ],
+      "azure_docs": [],
+      "implementation_steps": [
+        "Review current service deployment configuration",
+        "Enable zone-redundant deployment for critical services",
+        "Update load balancer configuration for multi-zone distribution",
+        "Test failover scenarios between zones"
+      ]
+    },
+    {
+      "id": "027a9f27-530b-4b2a-b62d-1948796db004",
+      "title": "Implement comprehensive monitoring and alerting",
+      "description": "Deploy Azure Monitor, Application Insights, and configure alerts",
+      "priority": 2,
+      "effort_estimate": "medium",
+      "impact_score": 8.0,
+      "likelihood_score": 8.0,
+      "pillar": "reliability",
+      "related_findings": [
+        "09df360f-9826-43ef-b9f7-0124d9909fc0"
+      ],
+      "azure_docs": [],
+      "implementation_steps": [
+        "Deploy Application Insights for application monitoring",
+        "Configure Log Analytics workspace",
+        "Set up health probes and availability tests",
+        "Create alert rules for critical metrics"
+      ]
+    },
+    {
+      "id": "82f02462-0caf-49e0-ae0e-e08440108209",
+      "title": "Implement cross-region disaster recovery",
+      "description": "Set up secondary region for disaster recovery with appropriate replication",
+      "priority": 2,
+      "effort_estimate": "high",
+      "impact_score": 9.0,
+      "likelihood_score": 6.0,
+      "pillar": "reliability",
+      "related_findings": [
+        "dede466b-a864-49f1-b898-e03979a96761"
+      ],
+      "azure_docs": [],
+      "implementation_steps": [
+        "Select appropriate secondary region",
+        "Set up cross-region replication for data services",
+        "Implement automated failover procedures",
+        "Create and test DR runbooks"
+      ]
+    },
+    {
+      "id": "101543c7-1208-4b98-b482-45fe2650922c",
+      "title": "Implement asynchronous messaging patterns",
+      "description": "Add messaging services to decouple components and improve fault tolerance",
+      "priority": 3,
+      "effort_estimate": "medium",
+      "impact_score": 6.0,
+      "likelihood_score": 5.0,
+      "pillar": "reliability",
+      "related_findings": [
+        "74978542-79cd-44a7-a498-ef3f47cb9e0d"
+      ],
+      "azure_docs": [],
+      "implementation_steps": [
+        "Identify coupling points in current architecture",
+        "Design message schemas and routing",
+        "Implement Service Bus or Event Hubs",
+        "Update application code for async patterns"
+      ]
+    }
+  ],
+  "constraints_for_other_agents": {
+    "min_zones": 2,
+    "regions_required": [
+      "primary",
+      "secondary"
+    ],
+    "health_probes_required": true,
+    "monitoring_required": true,
+    "rto_hours": 0.5,
+    "rpo_minutes": 5.0
+  },
+  "assessment_timestamp": "2025-11-01 18:25:59.620924"
+}
