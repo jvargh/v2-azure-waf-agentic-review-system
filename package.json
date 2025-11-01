@@ -1,0 +1,19 @@
+{
+  "name": "azure-well-architected-agents",
+  "version": "1.0.0",
+  "description": "Multi-agent system for Azure Well-Architected Framework assessments",
+  "main": "main.py",
+  "scripts": {
+    "start": "python main.py",
+    "test": "pytest tests/",
+    "lint": "flake8 .",
+    "format": "black ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/azure-well-architected-agents.git"
+  },
+  "keywords": ["azure", "well-architected", "agents", "microsoft-agent-framework"],
+  "author": "Your Organization",
+  "license": "MIT"
+}
