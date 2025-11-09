@@ -118,6 +118,25 @@ class BasePillarAgent:
     # ------------------------------------------------------------------
     # Initialization helpers
     # ------------------------------------------------------------------
+    async def _get_or_create_agent(self, instructions: str, name: str, model: str = None) -> Any:
+        """Get existing agent by name or create new one if it doesn't exist."""
+        try:
+            # Try to list agents and find existing one by name
+            agents = self._client.list_agents()
+            for agent in agents:
+                if agent.name == name:
+                    logger.info("Found existing agent '%s' with ID: %s", name, agent.id)
+                    return self._client.get_agent(agent.id)
+        except Exception as e:
+            logger.debug("Could not list agents (may not be supported): %s", e)
+        
+        # If no existing agent found or listing not supported, create new one
+        logger.info("Creating new agent '%s'", name)
+        if model:
+            return self._client.create_agent(instructions=instructions, name=name, model=model)
+        else:
+            return self._client.create_agent(instructions=instructions, name=name)
+
     async def _initialize_agent(self) -> None:
         """Initialize the hosted agent via Microsoft Agent Framework."""
         env_config, validation = self._load_and_validate_config()
@@ -142,7 +161,7 @@ class BasePillarAgent:
                     "Ensure Application Insights is connected to your AI Foundry project.",
                     obs_err
                 )
-            self.agent = self._client.create_agent(
+            self.agent = await self._get_or_create_agent(
                 instructions=instructions,
                 name=self.agent_name,
                 model=env_config.azure_ai_model_deployment_name,
@@ -162,7 +181,7 @@ class BasePillarAgent:
                     api_version=env_config.azure_openai_api_version,
                     credential=credential,
                 )
-            self.agent = self._client.create_agent(
+            self.agent = await self._get_or_create_agent(
                 instructions=instructions,
                 name=self.agent_name,
             )
