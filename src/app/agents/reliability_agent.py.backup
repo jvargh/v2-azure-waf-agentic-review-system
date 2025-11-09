@@ -1,0 +1,694 @@
+"""
+Azure Well-Architected Framework Reliability Agent
+Simplified Azure Foundry agent using LLM + MCP tools for best-practice recommendations with scoring.
+"""
+
+import asyncio
+import json
+import logging
+import os
+from typing import Dict, List, Any, Optional, Tuple
+from dataclasses import dataclass, asdict
+from datetime import datetime
+import aiofiles
+
+# Logging (configured later; default INFO unless quiet flag used)
+logger = logging.getLogger(__name__)
+
+# Gap rules now embedded inside reliability_pillar.json; external file deprecated.
+
+# Permanently disabled OpenTelemetry / observability
+os.environ["OTEL_SDK_DISABLED"] = "true"
+DISABLE_TELEMETRY = True
+try:
+    from agent_framework.azure import AzureOpenAIResponsesClient, AzureAIAgentClient
+    from azure.identity import DefaultAzureCredential, AzureCliCredential
+    AGENT_FRAMEWORK_AVAILABLE = True
+except ImportError as e:
+    logger.error(f"Microsoft Agent Framework required but not available: {e}")
+    raise SystemExit("Agent Framework import failed; terminating execution.")
+
+tracer = None  # never initialized
+meter = None   # never initialized
+
+def _maybe_setup_observability(_disabled: bool):  # no-op retained for call sites
+    return
+
+class AgentResponse:
+    """Simple response wrapper for agent outputs."""
+    def __init__(self, text: str):
+        self.text = text
+
+class RealAzureOpenAIAgent:
+    """Real Azure OpenAI agent using direct SDK (no fallback)."""
+    def __init__(self, client, config: dict, instructions: str, name: str):
+        self.client = client
+        self.config = config
+        self.instructions = instructions
+        self.name = name
+        self.deployment_name = config.get('deployment_name', 'gpt-4')
+
+    def run_sync(self, prompt: str) -> AgentResponse:
+        """Synchronous call wrapper (kept simple; caller can wrap in executor if needed)."""
+        response = self.client.chat.completions.create(
+            model=self.deployment_name,
+            messages=[
+                {"role": "system", "content": self.instructions},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            max_tokens=2000
+        )
+        content = response.choices[0].message.content
+        return AgentResponse(content)
+
+# Project imports
+import sys
+from pathlib import Path
+
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from src.utils.env_utils import load_env_vars, validate_env_vars, EnvironmentConfig
+from src.app.tools.mcp_tools import MCPToolManager
+
+# (Removed duplicate logging configuration)
+
+
+from src.utils.scoring.scoring import compute_pillar_scores, summarize_scores, reliability_category_breakdown
+
+RE_TITLES = {
+    "RE01": "Reliability-Focused Design Foundations",
+    "RE02": "Identify and Rate User and System Flows",
+    "RE03": "Perform Failure Mode Analysis (FMA)",
+    "RE04": "Define Reliability and Recovery Targets",
+    "RE05": "Add Redundancy at Different Levels",
+    "RE06": "Implement a Timely and Reliable Scaling Strategy",
+    "RE07": "Strengthen Resiliency with Self-Preservation and Self-Healing",
+    "RE08": "Test for Resiliency and Availability Scenarios",
+    "RE09": "Implement Structured, Tested, and Documented BCDR Plans",
+    "RE10": "Measure and Model the Solution’s Health Indicators",
+}
+
+@dataclass
+class ReliabilityAssessment:
+    """Reliability assessment combining LLM qualitative recs with deterministic maturity scoring.
+
+    domain_scores now preserves per-RE objects: { RE0X: {"score": int, "title": str } }
+    (Backwards compatibility: if legacy int detected during construction, it is wrapped.)
+    """
+    overall_score: int  # LLM-derived or heuristic (0-100)
+    domain_scores: Dict[str, Dict[str, Any]]
+    recommendations: List[Dict[str, Any]]
+    mcp_references: List[Dict[str, str]]
+    maturity: Dict[str, Any]  # Deterministic scoring matrix output
+    timestamp: str = ""
+
+    def __post_init__(self):
+        if not self.timestamp:
+            self.timestamp = datetime.now().isoformat()
+
+
+class ReliabilityAgent:
+    """
+    Simplified Azure Well-Architected Framework Reliability Agent.
+    Uses Azure Foundry LLM + MCP tools for best-practice recommendations with scoring.
+    """
+    
+    def __init__(self, enable_mcp: bool = True):
+        """Initialize the Reliability Agent with Azure Foundry."""
+        self.enable_mcp = enable_mcp
+        self.mcp_manager = MCPToolManager() if enable_mcp else None
+        self.agent = None
+        logger.info("Reliability Agent initialized")
+    
+    async def _initialize_agent(self):
+        """Initialize the agent using Microsoft Agent Framework only (no fallback mode)."""
+        try:
+            env_config, validation_result = self._load_and_validate_config()
+            config_type = validation_result["configuration_type"]
+            instructions = await self._load_instructions()
+            await self._init_with_agent_framework(env_config, config_type, instructions)
+            logger.info("Azure LLM agent initialized successfully (framework only)")
+        except Exception as e:
+            logger.error(f"Agent initialization failed: {e}")
+            raise
+
+    def _load_and_validate_config(self) -> Tuple[EnvironmentConfig, Dict[str, Any]]:
+        """Load environment and validate configuration (synchronous helper)."""
+        env_config = load_env_vars()
+        validation_result = validate_env_vars(env_config, agent_type="reliability")
+        if not validation_result["is_valid"] and AGENT_FRAMEWORK_AVAILABLE:
+            raise ValueError("Invalid configuration: " + "; ".join(validation_result["errors"]))
+        for warning in validation_result["warnings"]:
+            logger.warning(warning)
+        logger.info(f"Using {validation_result['configuration_type']} configuration")
+        return env_config, validation_result
+
+    async def _load_instructions(self) -> str:
+        prompts_dir = os.path.join(os.path.dirname(__file__), "..", "prompts")
+        instructions_file = os.path.join(prompts_dir, "reliability_agent_instructions.txt")
+        try:
+            async with aiofiles.open(instructions_file, 'r', encoding='utf-8') as f:
+                content = (await f.read()).strip()
+            logger.info("Loaded agent instructions from prompts folder")
+            return content
+        except FileNotFoundError:
+            logger.warning("Instructions file not found, using fallback instructions")
+            return (
+                "You are an Azure Well-Architected Framework reliability expert. "
+                "Analyze the provided architecture and return a JSON response with: "
+                "recommendations (title, description, priority, impact_score), mcp_references (title, url)."
+            )
+
+    async def _init_with_agent_framework(self, env_config: EnvironmentConfig, config_type: str, instructions: str):
+        credential = AzureCliCredential()
+        if config_type == "azure_ai_foundry":
+            from azure.identity.aio import AzureCliCredential as AsyncAzureCliCredential
+            async_credential = AsyncAzureCliCredential()
+            client = AzureAIAgentClient(async_credential=async_credential, project_endpoint=env_config.azure_ai_project_endpoint)
+            try:
+                await client.setup_azure_ai_observability()
+            except Exception as e:
+                logger.warning(f"Failed to setup Azure AI Foundry observability: {e}")
+            self.agent = client.create_agent(instructions=instructions, name="ReliabilityAgent", model=env_config.azure_ai_model_deployment_name)
+        elif config_type == "azure_openai":
+            if getattr(env_config, 'azure_openai_api_key', None):
+                client = AzureOpenAIResponsesClient(endpoint=env_config.azure_openai_endpoint, deployment_name=env_config.azure_openai_deployment_name, api_version=env_config.azure_openai_api_version, api_key=env_config.azure_openai_api_key)
+            else:
+                client = AzureOpenAIResponsesClient(endpoint=env_config.azure_openai_endpoint, deployment_name=env_config.azure_openai_deployment_name, api_version=env_config.azure_openai_api_version, credential=credential)
+            self.agent = client.create_agent(instructions=instructions, name="ReliabilityAgent")
+        else:
+            raise ValueError(f"Unknown configuration type: {config_type}")
+
+    # Removed _init_without_agent_framework: only framework-based initialization is supported now.
+    
+    async def assess_architecture(self, architecture_content: str) -> ReliabilityAssessment:
+        """Assess architecture reliability using Azure Foundry agent + MCP tools."""
+        # Determine if telemetry disabled at runtime (global flag may be set by CLI/env)
+        telemetry_flag = globals().get("DISABLE_TELEMETRY", False)
+        if AGENT_FRAMEWORK_AVAILABLE and not telemetry_flag and 'tracer' in globals() and tracer:
+            with tracer.start_as_current_span("reliability_assessment") as span:
+                span.set_attribute("architecture.size", len(architecture_content))
+                span.set_attribute("agent.type", "reliability")
+                return await self._perform_assessment(architecture_content)
+        return await self._perform_assessment(architecture_content)
+    
+    async def _perform_assessment(self, architecture_content: str) -> ReliabilityAssessment:
+        """Internal method to perform the actual assessment."""
+        logger.info("Starting reliability assessment...")
+        
+        try:
+            # Initialize agent if needed
+            if not self.agent:
+                await self._initialize_agent()
+            
+            # Gather MCP insights if enabled
+            mcp_references = []
+            if self.mcp_manager:
+                try:
+                    # Add custom span for MCP operations
+                    if AGENT_FRAMEWORK_AVAILABLE and 'tracer' in globals() and tracer:
+                        with tracer.start_as_current_span("mcp_insight_gathering"):
+                            docs = await self.mcp_manager.get_service_documentation("reliability", "azure-well-architected")
+                    else:
+                        docs = await self.mcp_manager.get_service_documentation("reliability", "azure-well-architected")
+                    
+                    mcp_references = [{"title": doc.get("title", ""), "url": doc.get("url", "")} for doc in docs[:3]]
+                    logger.info(f"Gathered {len(mcp_references)} MCP references")
+                except Exception as e:
+                    logger.warning(f"MCP insight gathering failed: {e}")
+            
+            # Construct analysis prompt aligned with instructions file (RE01–RE10 + re_codes + structured domain objects)
+            prompt = (
+                "You are an Azure Well-Architected Framework reliability expert. "
+                "Evaluate the architecture strictly against RE01–RE10 checklist items and output ONLY valid JSON matching this schema: "
+                "{overall_score:int, domain_scores:{RE01:{score:int,title:str},RE02:{score:int,title:str},RE03:{score:int,title:str},RE04:{score:int,title:str},RE05:{score:int,title:str},RE06:{score:int,title:str},RE07:{score:int,title:str},RE08:{score:int,title:str},RE09:{score:int,title:str},RE10:{score:int,title:str}}, "
+                "recommendations:[{title:str,description:str,priority:int,impact_score:int,re_codes:[str,...]}], mcp_references:[{title:str,url:str}]}. "
+                "Scores are 0-100. PRIORITY: 1=critical 2=important 3=nice-to-have. Provide only the JSON object.\n\nArchitecture:\n" + architecture_content
+            )
+            
+            # Run assessment via Azure Foundry agent with observability
+            logger.info("Running Azure Foundry agent assessment...")
+            
+            # Add custom metrics if available
+            if AGENT_FRAMEWORK_AVAILABLE and 'meter' in globals() and meter:
+                assessment_counter = meter.create_counter("reliability_assessments_total", description="Total number of reliability assessments")
+                assessment_counter.add(1, {"agent_type": "reliability"})
+            
+            result = await self.agent.run(prompt)
+            
+            # Parse response into assessment
+            assessment = self._parse_response(result.text, mcp_references, architecture_content)
+            
+            # Add assessment metrics
+            if AGENT_FRAMEWORK_AVAILABLE and 'meter' in globals() and meter:
+                score_histogram = meter.create_histogram("reliability_assessment_score", description="Reliability assessment scores")
+                score_histogram.record(assessment.overall_score, {"agent_type": "reliability"})
+            
+            return assessment
+            
+        except Exception as e:
+            logger.error(f"Architecture assessment failed: {str(e)}")
+            raise
+    
+    def _parse_response(self, response_text: str, mcp_references: List[Dict[str, str]], architecture_content: str) -> ReliabilityAssessment:
+        """Parse agent (LLM) response and augment with deterministic scoring matrix maturity output."""
+        try:
+            json_start = response_text.find('{')
+            json_end = response_text.rfind('}') + 1
+            if json_start == -1 or json_end <= json_start:
+                raise ValueError("LLM response did not contain a JSON object")
+            json_content = response_text[json_start:json_end]
+            data = json.loads(json_content)
+
+            # Flatten potential structured RE domain objects to simple int scores
+            raw_domain_scores = data.get("domain_scores", {}) or {}
+            normalized_domain_scores: Dict[str, Dict[str, Any]] = {}
+            for code, obj in raw_domain_scores.items():
+                # Accept either full object or primitive score
+                if isinstance(obj, dict):
+                    score_val = obj.get("score")
+                    try:
+                        score_int = int(score_val) if score_val is not None else 0
+                    except (TypeError, ValueError):
+                        score_int = 0
+                    title_val = obj.get("title") or RE_TITLES.get(code, code)
+                else:
+                    # Primitive numeric provided
+                    try:
+                        score_int = int(obj)
+                    except (TypeError, ValueError):
+                        score_int = 0
+                    title_val = RE_TITLES.get(code, code)
+                normalized_domain_scores[code] = {"score": score_int, "title": title_val}
+
+            # Ensure all standard RE codes present (fill missing with score 0)
+            for code, title in RE_TITLES.items():
+                if code not in normalized_domain_scores:
+                    normalized_domain_scores[code] = {"score": 0, "title": title}
+            maturity_scores = compute_pillar_scores(architecture_content, pillar="reliability")
+            maturity = summarize_scores(maturity_scores)
+            transformed_recs = self._normalize_llm_recommendations(data.get("recommendations", []))
+            return ReliabilityAssessment(
+                overall_score=int(data.get("overall_score", 0)),
+                domain_scores=normalized_domain_scores,
+                recommendations=transformed_recs,
+                mcp_references=mcp_references,
+                maturity=maturity
+            )
+        except Exception as e:
+            logger.error(f"Response parsing failed: {e}")
+            maturity_scores = compute_pillar_scores(architecture_content, pillar="reliability")
+            maturity = summarize_scores(maturity_scores)
+            # On parse failure create default structured domain scores
+            default_scores = {code: {"score": 0, "title": title} for code, title in RE_TITLES.items()}
+            return ReliabilityAssessment(
+                overall_score=0,
+                domain_scores=default_scores,
+                recommendations=[],
+                mcp_references=mcp_references,
+                maturity=maturity
+            )
+
+    def _normalize_llm_recommendations(self, recs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Normalize recommendation list to only include 'severity'."""
+        if not recs:
+            return []
+        return [self._normalize_single_rec(r) for r in recs if isinstance(r, dict)]
+
+    def _normalize_single_rec(self, rec: Dict[str, Any]) -> Dict[str, Any]:
+        sev = self._derive_severity(rec)
+        cleaned = {k: v for k, v in rec.items() if k not in {"priority", "execution_priority", "impact_score"}}
+        cleaned["severity"] = sev
+        return cleaned
+
+    @staticmethod
+    def _derive_severity(rec: Dict[str, Any]) -> int:
+        for key in ("severity", "execution_priority", "priority"):
+            val = rec.get(key)
+            try:
+                if val is not None:
+                    return int(val)
+            except (TypeError, ValueError):
+                pass
+        impact = rec.get("impact_score")
+        try:
+            v = int(impact) if impact is not None else None
+        except (TypeError, ValueError):
+            v = None
+        if v is None:
+            return 5
+        if v >= 9: return 1
+        if v >= 7: return 2
+        if v >= 5: return 3
+        if v >= 3: return 4
+        return 5
+
+    @staticmethod
+    def extract_touch_points_from_maturity(maturity: Dict[str, Any]) -> List[str]:
+        """Extract matched gap labels from maturity summary (integrated gap analysis)."""
+        gaps = maturity.get("gaps", [])
+        return [g.get("label") for g in gaps if g.get("matched")]
+
+    @staticmethod
+    def build_justification_rows(recs: List[Dict[str, Any]], det_recs: List[Dict[str, Any]], maturity: Dict[str, Any]) -> List[str]:
+        """Return markdown rows linking recommendations to gap labels."""
+        gaps = maturity.get("gaps", [])
+        if not gaps:
+            return ["| LLM | (none) | - | No gaps detected |"]
+
+        mapping: List[Tuple[str, str]] = []
+        for g in gaps:
+            label = g.get("label", "")
+            for source_key in ("recommendationHintKeywords", "matchedPatterns"):
+                for kw in g.get(source_key) or []:
+                    mapping.append((kw.lower(), label))
+
+        def labels_for(rec: Dict[str, Any]) -> str:
+            text = f"{rec.get('title','')} {rec.get('description','')}".lower()
+            hits = [label for kw, label in mapping if kw in text]
+            if not hits:
+                return "General best practice"
+            seen: set = set()
+            ordered: List[str] = []
+            for h in hits:
+                if h not in seen:
+                    seen.add(h)
+                    ordered.append(h)
+            return "; ".join(ordered)
+
+        def mk(source: str, rec: Dict[str, Any]) -> str:
+            return f"| {source} | {rec.get('title','')} | {rec.get('severity', rec.get('priority',''))} | {labels_for(rec)} |"
+
+        return [mk("LLM", r) for r in recs] + [mk("Deterministic", r) for r in det_recs]
+
+    @staticmethod
+    def build_results_markdown(assessment: ReliabilityAssessment, architecture_text: str) -> List[str]:
+        """Build full markdown report including reliability category breakdown."""
+        maturity = assessment.maturity
+        # We'll build practice rows later after recomputing pillar_scores to include titles.
+        practice_rows: List[str] = []
+        sorted_llm_recs = sorted(
+            assessment.recommendations,
+            key=lambda r: int(r.get('severity', r.get('priority', 999)))
+        )
+        rec_rows = [
+            f"| {r.get('title')} | {r.get('severity')} | {r.get('description')[:80].replace('|','/')} |"
+            for r in sorted_llm_recs
+        ]
+        det_sorted = sorted(
+            maturity.get('recommendations', []),
+            key=lambda r: int(r.get('severity', r.get('priority', 999)))
+        )
+        det_rec_rows = [
+            f"| {r.get('practice')} | {r.get('title')} | {r.get('severity', r.get('priority', ''))} | {r.get('description')[:80].replace('|','/')} |"
+            for r in det_sorted
+        ]
+        justification_rows_unsorted = ReliabilityAgent.build_justification_rows(
+            sorted_llm_recs, det_sorted, maturity
+        )
+        def _extract_severity(row: str) -> int:
+            parts = [p.strip() for p in row.split('|') if p.strip()]
+            if len(parts) < 3:
+                return 999
+            try:
+                return int(parts[2])
+            except ValueError:
+                return 999
+        justification_rows = sorted(justification_rows_unsorted, key=_extract_severity)
+        touch_points = ReliabilityAgent.extract_touch_points_from_maturity(maturity)
+        justification_section = [
+            "\n## Recommendation Justifications\n",
+            "Architecture Touch Points Identified:\n",
+            *([f"- {tp}" for tp in touch_points] if touch_points else ["- None detected"]),
+            "\n| Source | Recommendation | Severity | Linked Architecture Gaps |\n|--------|----------------|---------|---------------------------|",
+            *justification_rows,
+        ]
+        breakdown_block: List[str] = []
+        pillar_scores = None
+        try:
+            pillar_scores = compute_pillar_scores(architecture_text, pillar='reliability')
+            cat = reliability_category_breakdown(pillar_scores)
+            breakdown_block.append("\n## Reliability Pillar Breakdown\n")
+            # Overall average of subcategories (simple mean of category percentages)
+            try:
+                subcat_values = list(cat['categories'].values())
+                overall_subcat_avg = round(sum(subcat_values)/len(subcat_values),2) if subcat_values else 0.0
+                breakdown_block.append(f"**Overall Subcategory Average:** {overall_subcat_avg}%\n")
+            except Exception:
+                breakdown_block.append("**Overall Subcategory Average:** (calculation error)\n")
+            breakdown_block.append("| Category | Avg % | Practices (Code - Title - % Contribution) |\n|----------|-------|-------------------------------------------|")
+            for name, avg in cat['categories'].items():
+                practice_items = cat.get('category_practices', {}).get(name, [])
+                practice_str = "; ".join([f"{p['code']} - {p['title']} ({p['percent']}%)" for p in practice_items]) or "-"
+                breakdown_block.append(f"| {name} | {avg}% | {practice_str} |")
+        except Exception as e:
+            breakdown_block.append(f"\n> Breakdown unavailable: {e}\n")
+
+        # Build practice rows with titles (if pillar_scores available); fall back to summary structure without titles.
+        if pillar_scores:
+            practice_rows = [
+                f"| {ps.code} | {ps.title} | {ps.score} | {ps.weight} | {round(ps.coverage,3)} | {ps.mode} | {', '.join(ps.matched_signals) or '-'} |"
+                for ps in pillar_scores.practice_scores
+            ]
+        else:
+            practice_rows = [
+                f"| {p.get('code')} | (title unavailable) | {p.get('score')} | {p.get('weight')} | {p.get('coverage')} | {p.get('mode')} | {', '.join(p.get('matched_signals', [])) or '-'} |"
+                for p in maturity.get('practice_scores', [])
+            ]
+        md_content = [
+            "# Reliability Assessment Results\n",
+            f"Generated: {assessment.timestamp}\n",
+            f"Overall LLM Score: **{assessment.overall_score}** / 100\n",
+            f"Deterministic Maturity: **{maturity.get('overall_maturity_percent')}%** (pillar: {maturity.get('pillar')})\n",
+            *breakdown_block,
+            "\n## LLM Score Justification\n",
+            "The LLM score reflects qualitative reliability posture based on domain sub-scores and severity profile of surfaced recommendations.\n",
+            "### Domain Scores\n",
+            "| Code | Title | Score | Interpretation |\n|------|-------|-------|---------------|",
+            *[
+                f"| {code} | {obj.get('title','')} | {obj.get('score','-')} | Lower domain maturity influences reliability risk |"
+                for code, obj in sorted(assessment.domain_scores.items())
+            ],
+            "\n### Recommendation Severity Distribution\n",
+            "| Severity | Count | % of Recs | Meaning |\n|----------|-------|----------|---------|",
+        ]
+
+        # Append severity distribution rows
+        if assessment.recommendations:
+            severity_counts: Dict[int, int] = {}
+            for r in assessment.recommendations:
+                sev = int(r.get('severity', r.get('priority', 5)))
+                severity_counts[sev] = severity_counts.get(sev, 0) + 1
+            total_recs = len(assessment.recommendations)
+            severity_meaning = {1: 'Critical', 2: 'High', 3: 'Medium', 4: 'Low', 5: 'Informational'}
+            for sev in sorted(severity_counts.keys()):
+                cnt = severity_counts[sev]
+                pct = round((cnt/total_recs)*100, 1)
+                md_content.append(f"| {sev} | {cnt} | {pct}% | {severity_meaning.get(sev,'')} |")
+        else:
+            md_content.append("| - | 0 | 0% | No recommendations |")
+
+        # Gaps summary section
+        md_content.extend([
+            "\n## Gaps Summary\n",
+            "| Metric | Count |\n|--------|-------|",
+            f"| Matched Gaps | {maturity.get('matched_gap_count','-')} |",
+            f"| Unmatched Gaps | {maturity.get('unmatched_gap_count','-')} |",
+            "\n### Gaps Detailed Justification\n",
+            "| Gap ID | Label | Matched | Matched Patterns | Practice | Hint Keywords |\n|-------|-------|---------|-----------------|----------|---------------|",
+            *[f"| {g.get('id')} | {g.get('label')} | {'✅' if g.get('matched') else '❌'} | {', '.join(g.get('matchedPatterns', []) ) or '-'} | {g.get('practice')} | {', '.join(g.get('recommendationHintKeywords', [])) or '-'} |" for g in maturity.get('gaps', [])],
+            "\n## Recommendation Scores\n",
+            "| Code | Title | Score | Weight | Coverage | Mode | Matched Signals |\n|------|-------|-------|--------|----------|------|-----------------|",
+            *practice_rows,
+            "\n## LLM Recommendations (Severity)\n",
+            "| Title | Severity | Description |\n|-------|----------|-------------|",
+            *rec_rows,
+            "\n## Automated Gap-Based Recommendations\n",
+            "| Practice | Title | Severity | Description |\n|----------|-------|----------|-------------|",
+            *det_rec_rows,
+            "\n## Severity Scale\n",
+            "| Severity | Meaning |\n|----------|---------|\n| 1 | Critical |\n| 2 | High |\n| 3 | Medium |\n| 4 | Low |\n| 5 | Informational |\n",
+            *justification_section,
+        ])
+        return md_content
+
+
+def _print_config_status():
+    try:
+        env_config = load_env_vars()
+        validation_result = validate_env_vars(env_config, agent_type="reliability")
+        print("\n⚙️ Configuration Status:")
+        print(f"   Validation: {'✅ Valid' if validation_result['is_valid'] else '❌ Invalid'}")
+        print(f"   Config Type: {validation_result.get('configuration_type', 'None')}")
+        print(f"   Agent Framework: {'✅ Available' if AGENT_FRAMEWORK_AVAILABLE else '❌ Not available'}")
+        if validation_result["errors"]:
+            print("\n❌ Configuration Errors:")
+            for error in validation_result["errors"]:
+                print(f"   • {error}")
+        if validation_result["warnings"]:
+            print("\n⚠️ Configuration Warnings:")
+            for warning in validation_result["warnings"]:
+                print(f"   • {warning}")
+        if not validation_result["is_valid"] and validation_result["recommendations"]:
+            print("\n💡 Recommendations:")
+            for rec in validation_result["recommendations"]:
+                print(f"   • {rec}")
+            print("\n🚫 Invalid configuration; agent will not run.")
+    except Exception as e:
+        print(f"⚠️ Configuration error: {e}")
+        print("🚫 Agent cannot start due to configuration error.")
+
+
+# Example usage
+async def main():
+    """Example usage / CLI entry for the Reliability Agent.
+
+    Supports an optional --quiet flag to reduce console noise to essentials.
+    """
+    import argparse
+    parser = argparse.ArgumentParser(description="Run an Azure Well-Architected Reliability assessment sample.")
+    # Support both --quiet (correct spelling) and --quite (common typo) as aliases
+    parser.add_argument("--quiet", "--quite", dest="quiet", action="store_true", help="Suppress non-essential logging output (alias: --quite)")
+    parser.add_argument("--no-telemetry", action="store_true", help="Disable all observability (traces/metrics) setup")
+    args = parser.parse_args()
+
+    # Adjust logging based on quiet flag
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        logging.basicConfig(level=logging.INFO)
+    telemetry_disabled = (DISABLE_TELEMETRY or args.no_telemetry)
+    _maybe_setup_observability(telemetry_disabled)
+    if args.quiet:
+        for h in root_logger.handlers:
+            h.setLevel(logging.ERROR)
+        logger.setLevel(logging.ERROR)
+        # Additional suppression for known noisy loggers (opentelemetry / azure SDK)
+        noisy_loggers = [
+            "opentelemetry", "opentelemetry.sdk", "azure", "azure.core.pipeline.policies.http_logging_policy"
+        ]
+        for nl in noisy_loggers:
+            logging.getLogger(nl).setLevel(logging.CRITICAL + 1)
+            logging.getLogger(nl).disabled = True
+    else:
+        logger.setLevel(logging.INFO)
+
+    if not args.quiet:
+        print("🛡️ Azure Well-Architected Reliability Agent (Simplified)")
+        print("=" * 60)
+        _print_config_status()
+    
+    # Complex sample architecture based on Azure AI Foundry end-to-end basic reference
+    # https://github.com/Azure-Samples/openai-end-to-end-basic
+    sample_architecture = """
+    Azure AI Foundry Agent Service Chat Application Architecture:
+    
+    Core Infrastructure:
+    - Azure AI Foundry Account (S0 SKU, single region: East US 2)
+    - Azure AI Foundry Project "projchat" with system assigned managed identity
+    - Azure OpenAI deployment "agent-model" (GPT-4o, GlobalStandard, 50 TPM capacity)
+    - Bing Grounding Account (G1 SKU, global, for internet search capability)
+    
+    Web Application Tier:
+    - Azure App Service (Linux, Basic B1 tier, single instance)
+    - App Service Plan with zone redundancy disabled
+    - .NET 8.0 runtime on Linux containers
+    - User-assigned managed identity for AI Foundry access
+    - HTTPS-only configuration with TLS termination at App Service
+    - No custom domains, using default azurewebsites.net
+    
+    Monitoring & Logging:
+    - Application Insights (web application type, 90-day retention)
+    - Log Analytics Workspace (PerGB2018 SKU, 30-day retention, 10GB daily cap)
+    - Azure Diagnostics enabled for Audit, RequestResponse, and Trace logs
+    - App Service logs: HTTP, Console, App, Platform, Audit, IPSec, Auth logs enabled
+    
+    Security & Access:
+    - Azure AI Foundry with custom subdomain and local auth disabled
+    - Public network access enabled for both ingestion and query
+    - App Service managed identity granted Azure AI User role permissions
+    - FTP/SCM publishing credentials disabled
+    - SSH disabled on App Service
+    
+    Network Configuration:
+    - Public network access enabled across all services
+    - No virtual networks, subnets, or private endpoints configured
+    - No Web Application Firewall or DDoS protection
+    - Default Azure networking with internet-facing endpoints
+    
+    Data & Storage:
+    - No persistent data storage beyond logs
+    - No backup or disaster recovery configuration
+    - Application Insights connection string stored in app settings
+    - Agent state managed by Azure AI Foundry service
+    
+    Reliability Concerns Identified:
+    - Single region deployment (East US 2 only)
+    - No availability zones configured for App Service
+    - No geo-redundancy for AI Foundry or dependent services
+    - No disaster recovery plan or backup strategy
+    - Limited monitoring beyond basic Application Insights
+    - No auto-scaling configuration
+    - No health checks or failover mechanisms
+    - Dependencies on external Bing service without fallback
+    - No circuit breaker patterns for AI service calls
+    - Basic tier App Service with limited SLA guarantees
+    """
+    
+    try:
+        agent = ReliabilityAgent(enable_mcp=True)
+        if AGENT_FRAMEWORK_AVAILABLE and not telemetry_disabled and 'tracer' in globals() and tracer:
+            # Span renamed to generic execution span (removed 'reliability_agent_demo')
+            with tracer.start_as_current_span("reliability_agent_run") as span:
+                span.set_attribute("run.type", "sample_architecture")
+                span.set_attribute("run.sample_architecture", True)
+                assessment = await agent.assess_architecture(sample_architecture)
+        else:
+            assessment = await agent.assess_architecture(sample_architecture)
+
+        # Core summary always printed
+        print(f"LLM Score: {assessment.overall_score}/100 | Recommendations: {len(assessment.recommendations)} | Maturity %: {assessment.maturity.get('overall_maturity_percent')}")
+
+        result_json = json.dumps(asdict(assessment), indent=2, default=str)
+        if args.quiet:
+            # In quiet mode: show truncated JSON only
+            print("\nAssessment JSON (truncated) ...")
+            print(result_json[:1500] + ("..." if len(result_json) > 400 else ""))
+        else:
+            print("\nAssessment JSON (full) ...")
+            print(result_json)
+            try:
+                reliability_scores = compute_pillar_scores(sample_architecture, pillar="reliability")
+                breakdown = reliability_category_breakdown(reliability_scores)
+                print("\nCategory Breakdown Keys:", ", ".join(breakdown.get('categories', {}).keys()))
+            except Exception as e:
+                print(f"Breakdown error: {e}")
+
+        # Always write full markdown output under the project package root's src/output/RESULTS.md
+        # Previously this used a relative "src/output" which, when invoked from repo root, created a sibling
+        # folder outside the package (wara/src/output). We now anchor to the project_root derived earlier.
+        try:
+            project_root_local = Path(__file__).parent.parent.parent.parent  # azure-well-architected-agents
+            output_dir = project_root_local / "src" / "output"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            results_file = output_dir / "RESULTS.md"
+            md_content = ReliabilityAgent.build_results_markdown(assessment, sample_architecture)
+            results_file.write_text("\n".join(md_content), encoding="utf-8")
+            # Verification
+            if not results_file.exists() or results_file.stat().st_size == 0:
+                print(f"❌ Failed to create RESULTS markdown at expected path: {results_file}")
+            else:
+                if not args.quiet:
+                    print(f"Markdown written -> {results_file}")
+                else:
+                    print(f"RESULTS written: {results_file}")
+        except Exception as w_err:
+            print(f"❌ Error writing RESULTS.md: {w_err}")
+    except Exception as e:
+        print(f"❌ Assessment failed: {e}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

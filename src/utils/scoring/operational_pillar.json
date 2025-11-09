@@ -1,0 +1,206 @@
+{
+  "pillar": "operational",
+  "practices": [
+    {
+      "code": "OE01",
+      "title": "Define standard practices to develop and operate workload",
+      "weight": 0.10,
+      "signals": [
+        "devops",
+        "continuous improvement",
+        "postmortem",
+        "retrospective",
+        "knowledge sharing",
+        "documentation",
+        "blameless culture"
+      ],
+      "category": "culture"
+    },
+    {
+      "code": "OE02",
+      "title": "Formalize operational tasks",
+      "weight": 0.09,
+      "signals": [
+        "runbook",
+        "playbook",
+        "operational procedure",
+        "sop",
+        "task documentation",
+        "role definition"
+      ],
+      "category": "operations"
+    },
+    {
+      "code": "OE03",
+      "title": "Formalize software ideation and planning",
+      "weight": 0.08,
+      "signals": [
+        "requirements",
+        "design document",
+        "sprint",
+        "backlog",
+        "architectural decision",
+        "adr",
+        "planning"
+      ],
+      "category": "planning"
+    },
+    {
+      "code": "OE04",
+      "title": "Enhance software development and quality assurance",
+      "weight": 0.10,
+      "signals": [
+        "code review",
+        "lint",
+        "unit test",
+        "integration test",
+        "test coverage",
+        "style guide",
+        "design pattern"
+      ],
+      "category": "development"
+    },
+    {
+      "code": "OE05",
+      "title": "Use infrastructure as code",
+      "weight": 0.10,
+      "signals": [
+        "bicep",
+        "terraform",
+        "arm template",
+        "iac",
+        "declarative",
+        "infrastructure code",
+        "template"
+      ],
+      "category": "iac"
+    },
+    {
+      "code": "OE06",
+      "title": "Build workload supply chain with pipelines",
+      "weight": 0.11,
+      "signals": [
+        "ci/cd",
+        "pipeline",
+        "azure pipelines",
+        "github actions",
+        "build",
+        "deploy",
+        "automated test",
+        "quality gate"
+      ],
+      "category": "cicd"
+    },
+    {
+      "code": "OE07",
+      "title": "Design and implement monitoring system",
+      "weight": 0.11,
+      "signals": [
+        "application insights",
+        "log analytics",
+        "telemetry",
+        "metrics",
+        "distributed tracing",
+        "dashboard",
+        "observability"
+      ],
+      "category": "monitoring"
+    },
+    {
+      "code": "OE08",
+      "title": "Establish structured incident management",
+      "weight": 0.09,
+      "signals": [
+        "incident",
+        "on-call",
+        "pagerduty",
+        "opsgenie",
+        "escalation",
+        "response plan",
+        "postmortem"
+      ],
+      "category": "incident"
+    },
+    {
+      "code": "OE09",
+      "title": "Automate repetitive tasks",
+      "weight": 0.09,
+      "signals": [
+        "automation",
+        "azure automation",
+        "logic apps",
+        "functions",
+        "powershell",
+        "script",
+        "scheduled job"
+      ],
+      "category": "automation"
+    },
+    {
+      "code": "OE10",
+      "title": "Design and implement automation upfront",
+      "weight": 0.08,
+      "signals": [
+        "auto-scaling",
+        "self-healing",
+        "bootstrapping",
+        "lifecycle",
+        "provisioning",
+        "policy automation"
+      ],
+      "category": "automation"
+    },
+    {
+      "code": "OE11",
+      "title": "Define safe deployment practices",
+      "weight": 0.10,
+      "signals": [
+        "blue-green",
+        "canary",
+        "feature flag",
+        "deployment slot",
+        "progressive",
+        "rollback",
+        "safe deployment"
+      ],
+      "category": "deployment"
+    }
+  ],
+  "gaps": [
+    {
+      "pattern": "no (ci/cd|pipeline|automated deploy)",
+      "recommendation": "Implement CI/CD pipelines with Azure Pipelines or GitHub Actions to automate builds, tests, and deployments across all environments.",
+      "severity": "high",
+      "related_codes": ["OE06"]
+    },
+    {
+      "pattern": "(manual|no) (monitoring|observability|telemetry)",
+      "recommendation": "Deploy Application Insights and Log Analytics to capture comprehensive telemetry, metrics, and distributed tracing for operational visibility.",
+      "severity": "high",
+      "related_codes": ["OE07"]
+    },
+    {
+      "pattern": "no (iac|infrastructure.*code|bicep|terraform)",
+      "recommendation": "Adopt Infrastructure as Code using Bicep or Terraform to version control infrastructure, enable repeatable deployments, and reduce configuration drift.",
+      "severity": "high",
+      "related_codes": ["OE05"]
+    },
+    {
+      "pattern": "(manual|ad-hoc) (deployment|release)",
+      "recommendation": "Define safe deployment practices including blue-green deployments, canary releases, or deployment slots to minimize risk during releases.",
+      "severity": "medium",
+      "related_codes": ["OE11"]
+    },
+    {
+      "pattern": "no (incident|on-call|escalation) (process|plan)",
+      "recommendation": "Establish structured incident management with documented response procedures, on-call rotations, and postmortem practices to learn from failures.",
+      "severity": "medium",
+      "related_codes": ["OE08"]
+    }
+  ],
+  "scale": {
+    "min": 0,
+    "max": 5,
+    "description": "Scoring scale from 0 (no practice) to 5 (optimized practice)"
+  }
+}

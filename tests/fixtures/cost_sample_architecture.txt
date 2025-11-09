@@ -1,0 +1,26 @@
+Azure Architecture for E-commerce Platform
+
+Compute:
+- Azure App Service (Premium P2v3 tier) running 24/7 for both production and development environments
+- No autoscaling configured, instances always at max capacity
+- All resources using pay-as-you-go pricing with no reservations or savings plans
+
+Storage:
+- Azure Blob Storage (Premium performance tier) for all data including logs and backups
+- No lifecycle management policies configured
+- Full backups taken hourly with 365-day retention for dev/test environments
+
+Database:
+- Azure SQL Database (Business Critical tier) running continuously
+- Point-in-time restore backups retained for 35 days in all environments including dev/test
+- No database scaling policies, provisioned for peak load at all times
+
+Monitoring:
+- Application Insights configured but no one reviews the data regularly
+- No cost alerts or budgets configured in Azure Cost Management
+- Multiple orphaned resources from previous deployments still running (unused VMs, NICs, disks)
+
+Operations:
+- Manual deployment processes, no CI/CD automation
+- Development team frequently provisions new resources for testing without cleanup
+- No tagging strategy or resource organization for cost allocation

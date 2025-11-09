@@ -1,0 +1,10 @@
+Azure Security architecture summary:
+
+- Microsoft Entra ID tenant with conditional access enabled for administrators only; developers rely on passwords.
+- Azure App Service hosting the web front end with public internet exposure and no Web Application Firewall.
+- Azure SQL Database storing customer data with transparent data encryption but no customer-managed keys.
+- Redis cache for session storage without private endpoints.
+- Secrets for third-party APIs stored in App Service application settings; no automated rotation.
+- Monitoring limited to Application Insights; no integration with Microsoft Sentinel or SIEM tooling.
+- Incident response documented informally with no recent tabletop exercises.
+- Production and non-production environments share a single virtual network segment; NSG rules allow any-any traffic.

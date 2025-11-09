@@ -1,0 +1,3 @@
+title,msdfm_productname,msdfm_customerstatement,msdfm_resolution
+High CPU on App Service,Azure App Service,Customer reports intermittent high CPU spikes causing slow responses,Scaled up plan and optimized code paths; enabled autoscale rules.
+Storage Throttling,Azure Storage,Customer experiencing throttling errors during nightly batch upload,Implemented retry with exponential backoff and upgraded to premium tier.

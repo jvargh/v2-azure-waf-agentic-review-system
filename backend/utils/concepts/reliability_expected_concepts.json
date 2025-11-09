@@ -1,0 +1,37 @@
+{
+  "catalog_version": "2025-11-09.1",
+  "pillar": "Reliability",
+  "source": "Curated from reliability_pillar.json recommendation_groups + scoring signals + Azure Well-Architected docs",
+  "subcategories": {
+    "Simplicity & Efficiency": [
+      "simplicity","lean design","dependency minimization","paas","serverless","asynchronous messaging","queue","event hub","service bus","microservice justification","code review","dead code removal","polyglot persistence","flow inventory","abstraction layer","test coverage"
+    ],
+    "Flow Identification & Criticality": [
+      "flow inventory","criticality rating","business impact","raci","ram matrix","owner assignment","start/end points","exception mapping","sla linkage","sli linkage","slo linkage","usage telemetry","escalation path"
+    ],
+    "Failure Mode Analysis": [
+      "failure mode","fma","dependency catalog","blast radius","redundancy planning","degraded mode","component criticality","chaos hypothesis","mitigation","resiliency pattern","likelihood assessment"
+    ],
+    "Reliability & Recovery Targets": [
+      "slo","service level objective","sli","indicator","sla","mttr","mtbf","rto","rpo","error budget","budget burn","target workshop","dashboard","alert threshold"
+    ],
+    "Redundancy": [
+      "multi-region","active-active","active-passive","availability zone","zone","zone redundant","geo-replication","geo replication","geo-redundant","stateless compute","data replication","network redundancy","traffic manager","front door","load balancer","failover automation"
+    ],
+    "Scaling Strategy": [
+      "autoscale","horizontal","scale out","stateless compute","queue","event hub","service bus","load pattern","refactor long task","scaling metric","capacity planning","serverless scaling"
+    ],
+    "Self-Healing & Resilience Patterns": [
+      "circuit breaker","retry","exponential backoff","health probe","liveness","readiness","bulkhead","bulkhead pattern","deployment stamp","loose coupling","idempotent","idempotency","graceful degradation","cached fallback","auto-restart","auto-failover"
+    ],
+    "Resiliency & Chaos Testing": [
+      "chaos","chaos studio","fault injection","latency injection","resiliency test","reliability test","game day","dr drill","tabletop exercise","hypothesis experiment","backup restore drill","environment parity","slo validation"
+    ],
+    "BCDR Planning": [
+      "dr plan","disaster recovery","runbook","backup","recovery procedure","failback plan","escalation role","automated recovery","scripted failover","tabletop","recovery drill","annual dr drill"
+    ],
+    "Health Indicators & Monitoring": [
+      "health probe","liveness","readiness","synthetic","synthetic monitoring","correlation id","distributed tracing","otel","trace","telemetry dashboard","state model","healthy state","degraded state","unhealthy state","feedback loop"
+    ]
+  }
+}

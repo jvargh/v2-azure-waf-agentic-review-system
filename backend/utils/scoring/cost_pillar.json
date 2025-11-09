@@ -1,0 +1,249 @@
+{
+  "pillar": "cost",
+  "practices": [
+    {
+      "code": "CO01",
+      "title": "Create a culture of financial responsibility",
+      "weight": 0.08,
+      "signals": [
+        "cost review",
+        "training",
+        "accountability",
+        "automation",
+        "finops",
+        "cost awareness",
+        "shared ownership"
+      ],
+      "category": "culture"
+    },
+    {
+      "code": "CO02",
+      "title": "Create and maintain a cost model",
+      "weight": 0.09,
+      "signals": [
+        "cost model",
+        "budget",
+        "forecast",
+        "estimation",
+        "initial cost",
+        "run rate",
+        "buffer"
+      ],
+      "category": "planning"
+    },
+    {
+      "code": "CO03",
+      "title": "Collect and review cost data",
+      "weight": 0.08,
+      "signals": [
+        "cost management",
+        "azure cost",
+        "billing",
+        "alert",
+        "anomaly",
+        "trend",
+        "amortized"
+      ],
+      "category": "monitoring"
+    },
+    {
+      "code": "CO04",
+      "title": "Set spending guardrails",
+      "weight": 0.07,
+      "signals": [
+        "policy",
+        "rbac",
+        "limit",
+        "quota",
+        "governance",
+        "approval",
+        "release gate"
+      ],
+      "category": "governance"
+    },
+    {
+      "code": "CO05",
+      "title": "Get the best rates from providers",
+      "weight": 0.08,
+      "signals": [
+        "reserved",
+        "savings plan",
+        "hybrid benefit",
+        "spot",
+        "commitment",
+        "discount",
+        "enterprise agreement"
+      ],
+      "category": "procurement"
+    },
+    {
+      "code": "CO06",
+      "title": "Align usage to billing increments",
+      "weight": 0.06,
+      "signals": [
+        "billing increment",
+        "meter",
+        "right-sizing",
+        "usage pattern",
+        "proof of concept",
+        "billing alignment"
+      ],
+      "category": "optimization"
+    },
+    {
+      "code": "CO07",
+      "title": "Optimize component costs",
+      "weight": 0.07,
+      "signals": [
+        "cleanup",
+        "decommission",
+        "utilization",
+        "orphaned",
+        "legacy",
+        "unused",
+        "underutilized"
+      ],
+      "category": "optimization"
+    },
+    {
+      "code": "CO08",
+      "title": "Optimize environment costs",
+      "weight": 0.07,
+      "signals": [
+        "dev/test",
+        "nonproduction",
+        "shutdown",
+        "schedule",
+        "environment",
+        "operating hours",
+        "auto-stop"
+      ],
+      "category": "optimization"
+    },
+    {
+      "code": "CO09",
+      "title": "Optimize flow costs",
+      "weight": 0.06,
+      "signals": [
+        "user flow",
+        "transaction",
+        "priority",
+        "feature",
+        "tradeoff",
+        "cost per flow"
+      ],
+      "category": "optimization"
+    },
+    {
+      "code": "CO10",
+      "title": "Optimize data costs",
+      "weight": 0.08,
+      "signals": [
+        "storage tier",
+        "lifecycle",
+        "retention",
+        "backup",
+        "replication",
+        "compression",
+        "deduplication"
+      ],
+      "category": "data"
+    },
+    {
+      "code": "CO11",
+      "title": "Optimize code costs",
+      "weight": 0.07,
+      "signals": [
+        "performance",
+        "profiling",
+        "efficient",
+        "algorithm",
+        "caching",
+        "optimization",
+        "resource usage"
+      ],
+      "category": "development"
+    },
+    {
+      "code": "CO12",
+      "title": "Optimize scaling costs",
+      "weight": 0.08,
+      "signals": [
+        "autoscale",
+        "scale-in",
+        "scale-out",
+        "utilization",
+        "instance size",
+        "scale unit",
+        "demand management"
+      ],
+      "category": "scaling"
+    },
+    {
+      "code": "CO13",
+      "title": "Optimize personnel time",
+      "weight": 0.06,
+      "signals": [
+        "automation",
+        "ci/cd",
+        "debugging",
+        "observability",
+        "noise reduction",
+        "productivity",
+        "task priority"
+      ],
+      "category": "efficiency"
+    },
+    {
+      "code": "CO14",
+      "title": "Consolidate resources and responsibility",
+      "weight": 0.07,
+      "signals": [
+        "consolidation",
+        "shared service",
+        "multi-tenant",
+        "density",
+        "centralized",
+        "platform service"
+      ],
+      "category": "consolidation"
+    }
+  ],
+  "gaps": [
+    {
+      "pattern": "no (cost|budget|billing|pricing)",
+      "recommendation": "Implement Azure Cost Management + Billing with budgets and alerts to track spending. Create a cost model documenting estimated vs actual costs.",
+      "severity": "high",
+      "related_codes": ["CO02", "CO03"]
+    },
+    {
+      "pattern": "(pay-as-you-go|on-demand) .* (no|without) (reservation|savings|commitment)",
+      "recommendation": "Evaluate Azure Reservations or Savings Plans for predictable workloads to achieve up to 72% savings over pay-as-you-go pricing.",
+      "severity": "high",
+      "related_codes": ["CO05"]
+    },
+    {
+      "pattern": "(24/7|always on|running) .* (dev|test|nonprod|development)",
+      "recommendation": "Implement auto-shutdown schedules for nonproduction environments using Azure DevTest Labs or Azure Automation to reduce costs by 40-60%.",
+      "severity": "medium",
+      "related_codes": ["CO08"]
+    },
+    {
+      "pattern": "no (monitoring|tracking|alert|review) .* (cost|spend|budget)",
+      "recommendation": "Enable daily cost tracking with Azure Cost Management, set up anomaly alerts, and schedule weekly cost review meetings with stakeholders.",
+      "severity": "high",
+      "related_codes": ["CO03", "CO01"]
+    },
+    {
+      "pattern": "(premium|standard) .* (low|minimal|little|rare) (usage|traffic|demand)",
+      "recommendation": "Right-size resources by analyzing utilization metrics. Consider lower pricing tiers or serverless options for low-usage workloads.",
+      "severity": "medium",
+      "related_codes": ["CO07", "CO06"]
+    }
+  ],
+  "scale": {
+    "min": 0,
+    "max": 5,
+    "description": "Scoring scale from 0 (no practice) to 5 (optimized practice)"
+  }
+}

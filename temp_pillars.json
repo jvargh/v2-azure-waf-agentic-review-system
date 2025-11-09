@@ -1,0 +1,1221 @@
+[
+  {
+    "pillar": "Reliability",
+    "overall_score": 100,
+    "subcategories": {
+      "Reliability-Focused Design Foundations": 14,
+      "Identify and Rate User and System Flows": 9,
+      "Perform Failure Mode Analysis (FMA)": 8,
+      "Define Reliability and Recovery Targets": 10,
+      "Add Redundancy at Different Levels": 10,
+      "Implement a Timely and Reliable Scaling Strategy": 10,
+      "Strengthen Resiliency with Self-Preservation and Self-Healing": 10,
+      "Test for Resiliency and Availability Scenarios": 9,
+      "Implement Structured, Tested, and Documented BCDR Plans": 10,
+      "Measure and Model the Solution’s Health Indicators": 10
+    },
+    "recommendations": [
+      {
+        "pillar": "Reliability",
+        "title": "Document and Rate Critical User and System Flows",
+        "reasoning": "Establish a comprehensive mapping of user and system flows, explicitly rate each according to business impact and criticality. Ensure flows are linked to reliability targets (SLOs, RTO/RPO) and traceability to dependencies, allowing focused mitigation and escalation strategies for high-severity cases (e.g., authentication, latency).",
+        "recommendation": "Establish a comprehensive mapping of user and system flows, explicitly rate each according to business impact and criticality. Ensure flows are linked to reliability targets (SLOs, RTO/RPO) and traceability to dependencies, allowing focused mitigation and escalation strategies for high-severity cases (e.g., authentication, latency).",
+        "details": "Establish a comprehensive mapping of user and system flows, explicitly rate each according to business impact and criticality. Ensure flows are linked to reliability targets (SLOs, RTO/RPO) and traceability to dependencies, allowing focused mitigation and escalation strategies for high-severity cases (e.g., authentication, latency).",
+        "priority": "Critical",
+        "impact": "Unmapped and unrated critical flows may increase incident resolution time by up to 40%, leading to a projected annual loss of $250,000 from prolonged outages and missed SLAs. Comprehensive mapping and rating of flows can reduce mean time to recovery (MTTR) by 60% and decrease high-severity incident frequency by 30%, directly improving reliability and minimizing financial risk.",
+        "business_impact": "Unmapped and unrated critical flows may increase incident resolution time by up to 40%, leading to a projected annual loss of $250,000 from prolonged outages and missed SLAs. Comprehensive mapping and rating of flows can reduce mean time to recovery (MTTR) by 60% and decrease high-severity incident frequency by 30%, directly improving reliability and minimizing financial risk.",
+        "effort": "Medium",
+        "azure_service": "Azure Kubernetes Service",
+        "source": "Identify and Rate User and System Flows",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Reliability",
+        "title": "Perform Structured Failure Mode Analysis (FMA) With Refresh Cycles",
+        "reasoning": "Develop and maintain FMA documentation for all critical services (compute, data, and integrations). Explicitly identify single points of failure and deploy mitigation strategies (e.g., fallback, bulkhead isolation). Refresh analysis regularly—at least quarterly or after major changes—using incident (support case) data to inform gaps.",
+        "recommendation": "Develop and maintain FMA documentation for all critical services (compute, data, and integrations). Explicitly identify single points of failure and deploy mitigation strategies (e.g., fallback, bulkhead isolation). Refresh analysis regularly—at least quarterly or after major changes—using incident (support case) data to inform gaps.",
+        "details": "Develop and maintain FMA documentation for all critical services (compute, data, and integrations). Explicitly identify single points of failure and deploy mitigation strategies (e.g., fallback, bulkhead isolation). Refresh analysis regularly—at least quarterly or after major changes—using incident (support case) data to inform gaps.",
+        "priority": "Critical",
+        "impact": "Unaddressed failure mode analysis increases the risk of critical service outages by up to 40%, potentially extending mean time to recovery (MTTR) by 2 hours and driving incident-related costs above $50,000 annually. Implementing quarterly FMA refresh cycles and mitigation strategies is projected to reduce outage probability by 30% and lower MTTR by 60 minutes, directly decreasing support costs and improving business continuity.",
+        "business_impact": "Unaddressed failure mode analysis increases the risk of critical service outages by up to 40%, potentially extending mean time to recovery (MTTR) by 2 hours and driving incident-related costs above $50,000 annually. Implementing quarterly FMA refresh cycles and mitigation strategies is projected to reduce outage probability by 30% and lower MTTR by 60 minutes, directly decreasing support costs and improving business continuity.",
+        "effort": "Medium",
+        "azure_service": "Azure Kubernetes Service",
+        "source": "Perform Failure Mode Analysis (FMA)",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Reliability",
+        "title": "Strengthen Self-Healing and Graceful Degradation Patterns",
+        "reasoning": "Expand use of automatic self-healing mechanisms and implement graceful degradation for user-facing and background workloads (especially authentication and latency-sensitive flows). Leverage circuit breakers, fallback endpoints, and rapid rollout/recovery capabilities to minimize customer impact during failures.",
+        "recommendation": "Expand use of automatic self-healing mechanisms and implement graceful degradation for user-facing and background workloads (especially authentication and latency-sensitive flows). Leverage circuit breakers, fallback endpoints, and rapid rollout/recovery capabilities to minimize customer impact during failures.",
+        "details": "Expand use of automatic self-healing mechanisms and implement graceful degradation for user-facing and background workloads (especially authentication and latency-sensitive flows). Leverage circuit breakers, fallback endpoints, and rapid rollout/recovery capabilities to minimize customer impact during failures.",
+        "priority": "Critical",
+        "impact": "Persisting this gap may result in a 30% increase in customer-facing incidents and extend mean time to recovery (MTTR) by up to 2 hours per event, directly impacting brand trust and SLA compliance. Implementing self-healing and graceful degradation patterns is projected to reduce incident frequency by 40% and lower MTTR to under 30 minutes, minimizing downtime costs and enhancing user experience.",
+        "business_impact": "Persisting this gap may result in a 30% increase in customer-facing incidents and extend mean time to recovery (MTTR) by up to 2 hours per event, directly impacting brand trust and SLA compliance. Implementing self-healing and graceful degradation patterns is projected to reduce incident frequency by 40% and lower MTTR to under 30 minutes, minimizing downtime costs and enhancing user experience.",
+        "effort": "Medium",
+        "azure_service": "Azure Kubernetes Service",
+        "source": "Strengthen Resiliency with Self-Preservation and Self-Healing",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Reliability",
+        "title": "Enhance Chaos and Resiliency Testing Coverage",
+        "reasoning": "Integrate regular chaos engineering practices (e.g., Azure Chaos Studio) to proactively inject faults, simulate unplanned outages, and validate system responses. Ensure coverage for authentication, latency, and configuration scenarios to close gaps identified by support cases, and document test assumptions and outcomes.",
+        "recommendation": "Integrate regular chaos engineering practices (e.g., Azure Chaos Studio) to proactively inject faults, simulate unplanned outages, and validate system responses. Ensure coverage for authentication, latency, and configuration scenarios to close gaps identified by support cases, and document test assumptions and outcomes.",
+        "details": "Integrate regular chaos engineering practices (e.g., Azure Chaos Studio) to proactively inject faults, simulate unplanned outages, and validate system responses. Ensure coverage for authentication, latency, and configuration scenarios to close gaps identified by support cases, and document test assumptions and outcomes.",
+        "priority": "Critical",
+        "impact": "Failure to expand chaos and resiliency testing coverage may result in a 30% increase in critical incident frequency and extend mean time to recovery (MTTR) by up to 2 hours per outage. Implementing regular chaos engineering practices is projected to reduce incident rates by 25% and decrease MTTR by 50%, directly lowering operational risk and support costs.",
+        "business_impact": "Failure to expand chaos and resiliency testing coverage may result in a 30% increase in critical incident frequency and extend mean time to recovery (MTTR) by up to 2 hours per outage. Implementing regular chaos engineering practices is projected to reduce incident rates by 25% and decrease MTTR by 50%, directly lowering operational risk and support costs.",
+        "effort": "Medium",
+        "azure_service": "Azure Kubernetes Service",
+        "source": "Strengthen Resiliency with Self-Preservation and Self-Healing",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Reliability",
+        "title": "Improve Observability and Health Modeling",
+        "reasoning": "Extend metrics, logs, and distributed tracing across all microservices and authentication flows. Centralize health models in Azure Monitor, define actionable alert rules based on business reliability targets, and establish feedback loops between incident detection and architectural tuning.",
+        "recommendation": "Extend metrics, logs, and distributed tracing across all microservices and authentication flows. Centralize health models in Azure Monitor, define actionable alert rules based on business reliability targets, and establish feedback loops between incident detection and architectural tuning.",
+        "details": "Extend metrics, logs, and distributed tracing across all microservices and authentication flows. Centralize health models in Azure Monitor, define actionable alert rules based on business reliability targets, and establish feedback loops between incident detection and architectural tuning.",
+        "priority": "Critical",
+        "impact": "Limited observability and fragmented health modeling may increase mean time to resolution (MTTR) by 40% and raise incident recurrence risk to 30%, resulting in potential annual downtime costs exceeding $120,000. Centralizing metrics and alerts in Azure Monitor is projected to reduce MTTR by 50% and lower incident recurrence to below 10%, directly improving service reliability and minimizing financial losses.",
+        "business_impact": "Limited observability and fragmented health modeling may increase mean time to resolution (MTTR) by 40% and raise incident recurrence risk to 30%, resulting in potential annual downtime costs exceeding $120,000. Centralizing metrics and alerts in Azure Monitor is projected to reduce MTTR by 50% and lower incident recurrence to below 10%, directly improving service reliability and minimizing financial losses.",
+        "effort": "Medium",
+        "azure_service": "Azure Kubernetes Service",
+        "source": "Observability and Health Modeling",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Reliability",
+        "title": "Formalize Flow Ownership and Escalation Paths",
+        "reasoning": "Assign explicit ownership for each user/system flow to responsible teams, enable clear escalation paths, and ensure ownership extends to reliability monitoring. This will reduce operational ambiguity and support accelerated incident response for high-severity scenarios.",
+        "recommendation": "Assign explicit ownership for each user/system flow to responsible teams, enable clear escalation paths, and ensure ownership extends to reliability monitoring. This will reduce operational ambiguity and support accelerated incident response for high-severity scenarios.",
+        "details": "Assign explicit ownership for each user/system flow to responsible teams, enable clear escalation paths, and ensure ownership extends to reliability monitoring. This will reduce operational ambiguity and support accelerated incident response for high-severity scenarios.",
+        "priority": "Critical",
+        "impact": "Unclear flow ownership and escalation paths can increase mean time to resolution (MTTR) by up to 40%, potentially resulting in $250,000 annual losses due to prolonged service outages. Formalizing ownership and escalation is projected to reduce incident response times by 30% and decrease high-severity incident frequency by 20%, directly improving service reliability and customer satisfaction.",
+        "business_impact": "Unclear flow ownership and escalation paths can increase mean time to resolution (MTTR) by up to 40%, potentially resulting in $250,000 annual losses due to prolonged service outages. Formalizing ownership and escalation is projected to reduce incident response times by 30% and decrease high-severity incident frequency by 20%, directly improving service reliability and customer satisfaction.",
+        "effort": "Medium",
+        "azure_service": "Azure Kubernetes Service",
+        "source": "Identify and Rate User and System Flows",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Reliability",
+        "title": "Automate Post-Disaster Recovery Reviews and Lessons Learned",
+        "reasoning": "Following BCDR drills or real-world incidents, systematically perform post-event analysis capturing lessons learned and triggering updates to design and operational procedures. Use automation where possible to ensure reviews are thorough and timely.",
+        "recommendation": "Following BCDR drills or real-world incidents, systematically perform post-event analysis capturing lessons learned and triggering updates to design and operational procedures. Use automation where possible to ensure reviews are thorough and timely.",
+        "details": "Following BCDR drills or real-world incidents, systematically perform post-event analysis capturing lessons learned and triggering updates to design and operational procedures. Use automation where possible to ensure reviews are thorough and timely.",
+        "priority": "High",
+        "impact": "Failure to automate post-disaster recovery reviews may result in a 30% increase in repeat incidents and extend mean time to recovery (MTTR) by up to 4 hours per event. Implementing automated reviews is projected to reduce incident recurrence by 40% and lower compliance exposure costs by $50,000 annually.",
+        "business_impact": "Failure to automate post-disaster recovery reviews may result in a 30% increase in repeat incidents and extend mean time to recovery (MTTR) by up to 4 hours per event. Implementing automated reviews is projected to reduce incident recurrence by 40% and lower compliance exposure costs by $50,000 annually.",
+        "effort": "Medium",
+        "azure_service": "Azure Kubernetes Service",
+        "source": "Define Reliability and Recovery Targets",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Reliability",
+        "title": "Improve Reliability-Focused Design Foundations",
+        "reasoning": "The current architecture lacks automated health monitoring and fails to implement self-healing mechanisms for critical workloads. This gap means that failures are detected and remediated manually, resulting in prolonged recovery times and inconsistent reliability. Without these foundations, the system is vulnerable to undetected outages and performance degradation.",
+        "recommendation": "Implement Azure Monitor and Application Insights to enable comprehensive telemetry, alerting, and diagnostics across all production workloads. Configure Azure Automation Runbooks or Azure Functions to respond to common alert conditions with automated remediation steps (e.g., restart failed services, scale up resources). Adopt Azure Resource Health and Service Health for proactive notification and automated failover configuration. Reference: [Azure Monitor documentation](https://learn.microsoft.com/en-us/azure/azure-monitor/overview), [Automated remediation](https://learn.microsoft.com/en-us/azure/automation/automation-runbook-examples).",
+        "details": "Implement Azure Monitor and Application Insights to enable comprehensive telemetry, alerting, and diagnostics across all production workloads. Configure Azure Automation Runbooks or Azure Functions to respond to common alert conditions with automated remediation steps (e.g., restart failed services, scale up resources). Adopt Azure Resource Health and Service Health for proactive notification and automated failover configuration. Reference: [Azure Monitor documentation](https://learn.microsoft.com/en-us/azure/azure-monitor/overview), [Automated remediation](https://learn.microsoft.com/en-us/azure/automation/automation-runbook-examples).",
+        "priority": "Medium",
+        "impact": "Manual failure detection and recovery increases mean time to recovery (MTTR) by up to 60%, potentially resulting in $75,000 annual revenue loss due to prolonged outages and decreased customer trust. Implementing automated monitoring and self-healing can reduce MTTR by 40% and lower incident-related downtime by 30%, directly improving service reliability and minimizing financial risk.",
+        "business_impact": "Manual failure detection and recovery increases mean time to recovery (MTTR) by up to 60%, potentially resulting in $75,000 annual revenue loss due to prolonged outages and decreased customer trust. Implementing automated monitoring and self-healing can reduce MTTR by 40% and lower incident-related downtime by 30%, directly improving service reliability and minimizing financial risk.",
+        "effort": "Medium",
+        "azure_service": "",
+        "source": "Reliability-Focused Design Foundations",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Reliability",
+        "title": "Improve Identify and Rate User and System Flows",
+        "reasoning": "The current architecture lacks comprehensive identification and prioritization of critical user and system flows, resulting in unclear dependencies and insufficient mapping of service interactions. This gap prevents accurate reliability risk assessment and makes it difficult to focus resilience investments on the most business-critical areas. Without a flow inventory and rating, failure modes are not adequately understood or mitigated.",
+        "recommendation": "Use Azure Application Insights and Azure Monitor to instrument all major user and system flows, capturing telemetry for key transactions and dependencies. Document and visualize flows with Azure Architecture Center’s reference diagrams, then conduct a reliability rating using Azure Well-Architected Review tools, prioritizing flows based on business impact, frequency, and failure history. Establish automated alerting with Azure Monitor Action Groups for high-priority flows, ensuring rapid incident response for critical paths. Reference: [Azure Application Insights documentation](https://learn.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview).",
+        "details": "Use Azure Application Insights and Azure Monitor to instrument all major user and system flows, capturing telemetry for key transactions and dependencies. Document and visualize flows with Azure Architecture Center’s reference diagrams, then conduct a reliability rating using Azure Well-Architected Review tools, prioritizing flows based on business impact, frequency, and failure history. Establish automated alerting with Azure Monitor Action Groups for high-priority flows, ensuring rapid incident response for critical paths. Reference: [Azure Application Insights documentation](https://learn.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview).",
+        "priority": "High",
+        "impact": "Unidentified and unrated flows increase the risk of undetected critical failures by 40%, potentially resulting in up to 6 additional major incidents per quarter and prolonged MTTR exceeding 4 hours. Comprehensive flow instrumentation and prioritization are projected to reduce incident frequency by 50% and decrease MTTR for high-priority flows to under 90 minutes, directly minimizing business disruption and associated costs.",
+        "business_impact": "Unidentified and unrated flows increase the risk of undetected critical failures by 40%, potentially resulting in up to 6 additional major incidents per quarter and prolonged MTTR exceeding 4 hours. Comprehensive flow instrumentation and prioritization are projected to reduce incident frequency by 50% and decrease MTTR for high-priority flows to under 90 minutes, directly minimizing business disruption and associated costs.",
+        "effort": "High",
+        "azure_service": "",
+        "source": "Identify and Rate User and System Flows",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Reliability",
+        "title": "Improve Perform Failure Mode Analysis (FMA)",
+        "reasoning": "The current architecture lacks a systematic approach for identifying and analyzing potential failure modes, resulting in insufficient understanding of how system components respond to faults. Without documented FMA, there is no clear visibility into high-risk failure scenarios or mitigation strategies, leaving critical gaps in reliability planning. This non-compliance means failure points may go undetected until they cause major outages.",
+        "recommendation": "Implement a structured Failure Mode Analysis using Azure tools such as Azure Advisor, Azure Monitor, and Azure Chaos Studio. Begin by cataloging all critical assets and dependencies in your workload, then use Azure Chaos Studio to deliberately inject faults and observe system behavior. Document each failure scenario, impact, and mitigation in an FMA register. Regularly review and update failure modes as your architecture evolves, referencing the Azure Well-Architected Reliability documentation for best practices (https://learn.microsoft.com/en-us/azure/architecture/framework/resiliency/overview).",
+        "details": "Implement a structured Failure Mode Analysis using Azure tools such as Azure Advisor, Azure Monitor, and Azure Chaos Studio. Begin by cataloging all critical assets and dependencies in your workload, then use Azure Chaos Studio to deliberately inject faults and observe system behavior. Document each failure scenario, impact, and mitigation in an FMA register. Regularly review and update failure modes as your architecture evolves, referencing the Azure Well-Architected Reliability documentation for best practices (https://learn.microsoft.com/en-us/azure/architecture/framework/resiliency/overview).",
+        "priority": "High",
+        "impact": "Undetected failure modes could increase unplanned outage frequency by 30% annually, potentially resulting in downtime costs exceeding $250,000 and a 40% rise in mean time to recovery (MTTR). Implementing structured FMA is expected to reduce incident count by 25% and lower MTTR by 35%, improving compliance posture and minimizing revenue loss from service disruptions.",
+        "business_impact": "Undetected failure modes could increase unplanned outage frequency by 30% annually, potentially resulting in downtime costs exceeding $250,000 and a 40% rise in mean time to recovery (MTTR). Implementing structured FMA is expected to reduce incident count by 25% and lower MTTR by 35%, improving compliance posture and minimizing revenue loss from service disruptions.",
+        "effort": "High",
+        "azure_service": "",
+        "source": "Perform Failure Mode Analysis (FMA)",
+        "points_recoverable": null
+      }
+    ],
+    "confidence": "High",
+    "score_source": "rescored_bottom_up",
+    "coverage_pct": 84.62,
+    "negative_mentions": 1,
+    "domain_scores_raw": null,
+    "scoring_explanation": {
+      "evidence_score": 97,
+      "pre_elevation_score": 97,
+      "final_score": 100,
+      "elevation_uplift": 0,
+      "scale_factor_initial": null,
+      "scale_factor_final": null,
+      "subcategories_sum_before": 100,
+      "subcategories_sum_final": 100,
+      "score_source": "rescored_bottom_up"
+    },
+    "subcategory_details": null,
+    "gap_based_recommendations": [],
+    "normalization_applied": false,
+    "raw_subcategory_sum": 100,
+    "simple_explanation": {
+      "summary": "Reliability rescored at 100/100 using transparent bottom-up scoring (High confidence).",
+      "drivers": [
+        "@{factor=coverage; impact=84.6%}",
+        "@{factor=gaps; impact=1 gap(s)}",
+        "@{factor=normalization; impact=not applied}",
+        "@{factor=provenance; impact=bottom-up scoring}"
+      ],
+      "coverage_band": "comprehensive",
+      "gaps_assessment": "some gaps noted",
+      "focus_areas": [
+        "Perform Failure Mode Analysis (FMA)",
+        "Identify and Rate User and System Flows",
+        "Test for Resiliency and Availability Scenarios"
+      ],
+      "confidence": "High",
+      "score_source": "rescored_bottom_up",
+      "metrics": {
+        "score": 100,
+        "coverage_pct": 84.62,
+        "negative_mentions": 1
+      }
+    },
+    "scoring_breakdown": {
+      "pillar": "reliability",
+      "name": "Reliability",
+      "concepts": {
+        "critical": "@{found=System.Object[]; missing=System.Object[]}",
+        "important": "@{found=System.Object[]; missing=System.Object[]}",
+        "nice_to_have": "@{found=System.Object[]; missing=System.Object[]}"
+      },
+      "weights": {
+        "redundancy": 10.0,
+        "failover": 10.0,
+        "backup": 10.0,
+        "disaster recovery": 10.0,
+        "availability": 10.0,
+        "replica": 6.0,
+        "multi-region": 6.0,
+        "health check": 6.0,
+        "monitoring": 6.0,
+        "sla": 6.0,
+        "resiliency": 6.67,
+        "chaos engineering": 6.67,
+        "circuit breaker": 6.67
+      },
+      "steps": [
+        "@{step=initial_scaling; raw_score=86.67; density_multiplier=1; depth_factor=1.15; after=99; reason=Apply density & depth multipliers}",
+        "@{step=minor_gaps_penalty; before=99; after=97; negative_mentions=1; penalty_fraction=0.015; reason=Minor gaps present}"
+      ],
+      "raw_components": {
+        "critical_score": 50.0,
+        "important_score": 30.0,
+        "nice_score": 6.67
+      },
+      "final": {
+        "overall_score": 97,
+        "confidence": "High",
+        "score_source": "evidence",
+        "coverage_pct": 84.62,
+        "negative_mentions": 1,
+        "concepts_found": 11,
+        "total_concepts": 13
+      }
+    }
+  },
+  {
+    "pillar": "Security",
+    "overall_score": 94,
+    "subcategories": {
+      "Establish a Security Baseline": 14,
+      "Maintain a Secure Development Lifecycle": 7,
+      "Classify and Label Data Sensitivity": 7,
+      "Create Intentional Segmentation and Perimeters": 8,
+      "Implement Conditional Identity and Access Management": 7,
+      "Isolate, Filter, and Control Network Traffic": 8,
+      "Encrypt Data with Modern Methods": 8,
+      "Harden Workload Components": 7,
+      "Protect Application Secrets": 8,
+      "Implement Holistic Threat Detection and Monitoring": 8,
+      "Establish a Comprehensive Security Testing Regimen": 5,
+      "Define and Exercise Incident Response Procedures": 7
+    },
+    "recommendations": [
+      {
+        "pillar": "Security",
+        "title": "Strengthen Secure Development Lifecycle with Automated Security Testing",
+        "reasoning": "The architecture mentions automated testing pipelines but lacks explicit coverage for SAST, DAST, and dependency scanning. Integrate these tools into CI/CD to ensure vulnerabilities are detected prior to deployment, minimizing risk of exposure from supply chain and custom code flaws. Regularly perform threat modeling with every major application change.",
+        "recommendation": "The architecture mentions automated testing pipelines but lacks explicit coverage for SAST, DAST, and dependency scanning. Integrate these tools into CI/CD to ensure vulnerabilities are detected prior to deployment, minimizing risk of exposure from supply chain and custom code flaws. Regularly perform threat modeling with every major application change.",
+        "details": "The architecture mentions automated testing pipelines but lacks explicit coverage for SAST, DAST, and dependency scanning. Integrate these tools into CI/CD to ensure vulnerabilities are detected prior to deployment, minimizing risk of exposure from supply chain and custom code flaws. Regularly perform threat modeling with every major application change.",
+        "priority": "Critical",
+        "impact": "Failure to implement comprehensive automated security testing increases the probability of critical vulnerabilities reaching production by up to 40%, potentially resulting in an annual incident remediation cost exceeding $250,000. Integrating SAST, DAST, and dependency scanning into CI/CD pipelines can reduce security incident frequency by 60% and lower mean time to remediation (MTTR) by 30%.",
+        "business_impact": "Failure to implement comprehensive automated security testing increases the probability of critical vulnerabilities reaching production by up to 40%, potentially resulting in an annual incident remediation cost exceeding $250,000. Integrating SAST, DAST, and dependency scanning into CI/CD pipelines can reduce security incident frequency by 60% and lower mean time to remediation (MTTR) by 30%.",
+        "effort": "Medium",
+        "azure_service": "Azure Key Vault",
+        "source": "Maintain a Secure Development Lifecycle",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Security",
+        "title": "Improve Identity Hygiene and Conditional Access Implementation",
+        "reasoning": "Support cases reveal recurring authentication and access issues, indicating potential gaps in Azure AD B2C and identity protection. Review and harden conditional access policies, enforce MFA for all users (especially administrators), enable Just-In-Time access via Privileged Identity Management, and audit non-human identities for excessive permissions and rotation.",
+        "recommendation": "Support cases reveal recurring authentication and access issues, indicating potential gaps in Azure AD B2C and identity protection. Review and harden conditional access policies, enforce MFA for all users (especially administrators), enable Just-In-Time access via Privileged Identity Management, and audit non-human identities for excessive permissions and rotation.",
+        "details": "Support cases reveal recurring authentication and access issues, indicating potential gaps in Azure AD B2C and identity protection. Review and harden conditional access policies, enforce MFA for all users (especially administrators), enable Just-In-Time access via Privileged Identity Management, and audit non-human identities for excessive permissions and rotation.",
+        "priority": "Critical",
+        "impact": "Persistent gaps in identity hygiene and conditional access could increase the risk of unauthorized access incidents by up to 40%, potentially resulting in compliance violations and an estimated $250,000 in annual remediation costs. Strengthening policies and enforcing MFA is projected to reduce identity-related support cases by 60% and decrease mean time to resolution (MTTR) for access issues by 30%.",
+        "business_impact": "Persistent gaps in identity hygiene and conditional access could increase the risk of unauthorized access incidents by up to 40%, potentially resulting in compliance violations and an estimated $250,000 in annual remediation costs. Strengthening policies and enforcing MFA is projected to reduce identity-related support cases by 60% and decrease mean time to resolution (MTTR) for access issues by 30%.",
+        "effort": "Medium",
+        "azure_service": "Azure Key Vault",
+        "source": "Identity Hygiene and Conditional Access Implementation",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Security",
+        "title": "Formalize and Exercise Comprehensive Incident Response Procedures",
+        "reasoning": "Although an incident response plan is referenced, operational incident signals suggest gaps in execution and post-incident review. Establish documented runbooks, clearly defined severity levels, contact trees, and regular tabletop exercises. Integrate incident response tracking with enterprise ITSM and SecOps platforms for rapid containment and learning.",
+        "recommendation": "Although an incident response plan is referenced, operational incident signals suggest gaps in execution and post-incident review. Establish documented runbooks, clearly defined severity levels, contact trees, and regular tabletop exercises. Integrate incident response tracking with enterprise ITSM and SecOps platforms for rapid containment and learning.",
+        "details": "Although an incident response plan is referenced, operational incident signals suggest gaps in execution and post-incident review. Establish documented runbooks, clearly defined severity levels, contact trees, and regular tabletop exercises. Integrate incident response tracking with enterprise ITSM and SecOps platforms for rapid containment and learning.",
+        "priority": "Critical",
+        "impact": "Failure to formalize and regularly exercise incident response procedures may result in a 40% increase in MTTR and expose the business to up to $250,000 in compliance-related fines annually due to delayed containment and reporting. Implementing documented runbooks and integrated tracking is projected to reduce incident resolution time by 60% and decrease regulatory risk probability by 35%.",
+        "business_impact": "Failure to formalize and regularly exercise incident response procedures may result in a 40% increase in MTTR and expose the business to up to $250,000 in compliance-related fines annually due to delayed containment and reporting. Implementing documented runbooks and integrated tracking is projected to reduce incident resolution time by 60% and decrease regulatory risk probability by 35%.",
+        "effort": "Medium",
+        "azure_service": "Azure Key Vault",
+        "source": "Define and Exercise Incident Response Procedures",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Security",
+        "title": "Improve Establish a Security Baseline",
+        "reasoning": "The current architecture lacks consistent security baseline enforcement across Azure resources, resulting in unmanaged configuration drift and potential exposure to vulnerabilities. Key controls—such as minimum password requirements, encryption settings, and auditing—are not universally applied or monitored. This gap increases the risk that newly provisioned or updated resources do not meet organizational or compliance standards.",
+        "recommendation": "Implement Azure Policy to define and enforce security baselines for all resource types, including virtual machines, databases, and storage accounts. Utilize built-in policy initiatives like \"Security Baseline for Azure\" and customize them to enforce encryption, secure access, and logging requirements. Regularly review compliance state in Azure Policy and remediate non-compliant resources using automated remediation tasks. Reference: [Azure Policy documentation](https://learn.microsoft.com/en-us/azure/governance/policy/overview).",
+        "details": "Implement Azure Policy to define and enforce security baselines for all resource types, including virtual machines, databases, and storage accounts. Utilize built-in policy initiatives like \"Security Baseline for Azure\" and customize them to enforce encryption, secure access, and logging requirements. Regularly review compliance state in Azure Policy and remediate non-compliant resources using automated remediation tasks. Reference: [Azure Policy documentation](https://learn.microsoft.com/en-us/azure/governance/policy/overview).",
+        "priority": "Medium",
+        "impact": "Failure to enforce consistent security baselines may increase compliance exposure by up to 40% and elevate the probability of security incidents by 25%, potentially resulting in regulatory fines and operational disruptions. Implementing automated Azure Policy enforcement is expected to reduce non-compliant resource count by 80% and decrease mean time to remediation (MTTR) for configuration drift from days to under one hour.",
+        "business_impact": "Failure to enforce consistent security baselines may increase compliance exposure by up to 40% and elevate the probability of security incidents by 25%, potentially resulting in regulatory fines and operational disruptions. Implementing automated Azure Policy enforcement is expected to reduce non-compliant resource count by 80% and decrease mean time to remediation (MTTR) for configuration drift from days to under one hour.",
+        "effort": "Medium",
+        "azure_service": "",
+        "source": "Establish a Security Baseline",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Security",
+        "title": "Improve Maintain a Secure Development Lifecycle",
+        "reasoning": "The current architecture lacks enforced processes and tools for secure code development, such as automated security checks in the CI/CD pipeline and standardized code review procedures. Without these controls, vulnerabilities can be introduced during development and remain undetected until after deployment. This deficiency exposes the environment to risks from insecure code and unpatched dependencies.",
+        "recommendation": "Implement Azure DevOps Security tooling by integrating Microsoft Defender for DevOps into your CI/CD pipelines to automate code scanning for vulnerabilities and secrets. Enforce mandatory pull request reviews and use branch policies to require successful completion of security checks before merging code. Standardize secure development practices by adopting the Microsoft Security Development Lifecycle (SDL) guidelines and regularly audit pipeline configurations. Reference: [Microsoft Defender for DevOps documentation](https://learn.microsoft.com/en-us/azure/defender-for-cloud/defender-for-devops-introduction).",
+        "details": "Implement Azure DevOps Security tooling by integrating Microsoft Defender for DevOps into your CI/CD pipelines to automate code scanning for vulnerabilities and secrets. Enforce mandatory pull request reviews and use branch policies to require successful completion of security checks before merging code. Standardize secure development practices by adopting the Microsoft Security Development Lifecycle (SDL) guidelines and regularly audit pipeline configurations. Reference: [Microsoft Defender for DevOps documentation](https://learn.microsoft.com/en-us/azure/defender-for-cloud/defender-for-devops-introduction).",
+        "priority": "High",
+        "impact": "Persisting with the current gap increases the probability of security incidents by up to 40% and could result in an average remediation cost of $150,000 per critical vulnerability post-deployment. Implementing automated security checks and standardized reviews is projected to reduce vulnerability introduction rates by 60% and decrease mean time to remediation (MTTR) by 35%.",
+        "business_impact": "Persisting with the current gap increases the probability of security incidents by up to 40% and could result in an average remediation cost of $150,000 per critical vulnerability post-deployment. Implementing automated security checks and standardized reviews is projected to reduce vulnerability introduction rates by 60% and decrease mean time to remediation (MTTR) by 35%.",
+        "effort": "Medium",
+        "azure_service": "",
+        "source": "Maintain a Secure Development Lifecycle",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Security",
+        "title": "Improve Classify and Label Data Sensitivity",
+        "reasoning": "Current data storage and processing solutions lack systematic classification and labeling of data sensitivity levels, such as confidential, internal, or public. This gap prevents effective application of security controls and compliance with regulatory requirements, leaving sensitive information potentially exposed or mismanaged.",
+        "recommendation": "Implement Azure Information Protection (AIP) to automatically classify, label, and protect documents and emails based on their sensitivity. Integrate AIP with Microsoft Purview Data Map to inventory and classify data across Azure resources, including storage accounts, databases, and files. Define and enforce labeling policies using Purview’s Data Classification features, ensuring all new and existing data assets are correctly tagged. Refer to Azure Information Protection documentation and Purview Data Classification guidance for step-by-step setup.",
+        "details": "Implement Azure Information Protection (AIP) to automatically classify, label, and protect documents and emails based on their sensitivity. Integrate AIP with Microsoft Purview Data Map to inventory and classify data across Azure resources, including storage accounts, databases, and files. Define and enforce labeling policies using Purview’s Data Classification features, ensuring all new and existing data assets are correctly tagged. Refer to Azure Information Protection documentation and Purview Data Classification guidance for step-by-step setup.",
+        "priority": "High",
+        "impact": "Failure to classify and label data sensitivity could result in a 35% increase in compliance exposure and a projected $250,000 annual risk from data breaches due to mismanaged confidential information. Implementing Azure Information Protection and Purview is expected to reduce compliance-related incidents by 60% and lower MTTR for data access violations from 8 hours to under 2 hours.",
+        "business_impact": "Failure to classify and label data sensitivity could result in a 35% increase in compliance exposure and a projected $250,000 annual risk from data breaches due to mismanaged confidential information. Implementing Azure Information Protection and Purview is expected to reduce compliance-related incidents by 60% and lower MTTR for data access violations from 8 hours to under 2 hours.",
+        "effort": "Medium",
+        "azure_service": "",
+        "source": "Classify and Label Data Sensitivity",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Security",
+        "title": "Improve Create Intentional Segmentation and Perimeters",
+        "reasoning": "The current architecture lacks clear segmentation between critical workloads, development environments, and externally facing resources. Network boundaries are insufficiently defined, allowing for excessive lateral movement within the environment. This gap exposes sensitive systems to potential compromise if an attacker gains access to any part of the network.",
+        "recommendation": "Implement network segmentation using Azure Virtual Networks (VNets) and Network Security Groups (NSGs) to isolate workloads by function and sensitivity. Deploy Azure Firewall or Azure Application Gateway to enforce perimeter security and control inbound/outbound traffic flows. Leverage Azure Private Endpoints to restrict access to platform services, ensuring only approved VNets can communicate with sensitive resources. Follow the guidance in Microsoft’s Secure Workload Segmentation documentation for best practices.",
+        "details": "Implement network segmentation using Azure Virtual Networks (VNets) and Network Security Groups (NSGs) to isolate workloads by function and sensitivity. Deploy Azure Firewall or Azure Application Gateway to enforce perimeter security and control inbound/outbound traffic flows. Leverage Azure Private Endpoints to restrict access to platform services, ensuring only approved VNets can communicate with sensitive resources. Follow the guidance in Microsoft’s Secure Workload Segmentation documentation for best practices.",
+        "priority": "Medium",
+        "impact": "Unsegmented networks increase the risk of unauthorized lateral movement, raising the probability of critical data breaches by up to 40% and potentially incurring regulatory penalties exceeding $250,000 annually. Implementing segmentation and perimeter controls is projected to reduce security incident frequency by 60% and decrease mean time to recovery (MTTR) by 35%.",
+        "business_impact": "Unsegmented networks increase the risk of unauthorized lateral movement, raising the probability of critical data breaches by up to 40% and potentially incurring regulatory penalties exceeding $250,000 annually. Implementing segmentation and perimeter controls is projected to reduce security incident frequency by 60% and decrease mean time to recovery (MTTR) by 35%.",
+        "effort": "Medium",
+        "azure_service": "",
+        "source": "Create Intentional Segmentation and Perimeters",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Security",
+        "title": "Improve Implement Conditional Identity and Access Management",
+        "reasoning": "The current architecture lacks conditional access policies for identity and access management, resulting in uniform access controls that do not adapt to user risk, location, or device state. This oversight increases exposure to unauthorized access, especially from compromised accounts or unmanaged devices. Without conditional controls, sensitive resources are vulnerable to inappropriate access scenarios.",
+        "recommendation": "Implement Azure Active Directory Conditional Access policies to enforce context-based access restrictions, such as requiring multi-factor authentication (MFA) for high-risk sign-ins, blocking access from non-compliant devices, and restricting access based on user location. Use built-in risk detection and sign-in risk policies to automate dynamic access decisions. Regularly review policy effectiveness using Azure AD sign-in logs and integrate with Microsoft Defender for Identity for enhanced threat detection. Reference: [Azure AD Conditional Access documentation](https://learn.microsoft.com/en-us/azure/active-directory/conditional-access/).",
+        "details": "Implement Azure Active Directory Conditional Access policies to enforce context-based access restrictions, such as requiring multi-factor authentication (MFA) for high-risk sign-ins, blocking access from non-compliant devices, and restricting access based on user location. Use built-in risk detection and sign-in risk policies to automate dynamic access decisions. Regularly review policy effectiveness using Azure AD sign-in logs and integrate with Microsoft Defender for Identity for enhanced threat detection. Reference: [Azure AD Conditional Access documentation](https://learn.microsoft.com/en-us/azure/active-directory/conditional-access/).",
+        "priority": "High",
+        "impact": "Failure to implement conditional access policies may result in a 40% increase in unauthorized access incidents annually, exposing sensitive data and potentially incurring regulatory fines exceeding $250,000. Deploying Azure AD Conditional Access is expected to reduce account compromise incidents by up to 60% and decrease mean time to detect (MTTD) unauthorized access attempts from 12 hours to under 30 minutes.",
+        "business_impact": "Failure to implement conditional access policies may result in a 40% increase in unauthorized access incidents annually, exposing sensitive data and potentially incurring regulatory fines exceeding $250,000. Deploying Azure AD Conditional Access is expected to reduce account compromise incidents by up to 60% and decrease mean time to detect (MTTD) unauthorized access attempts from 12 hours to under 30 minutes.",
+        "effort": "Medium",
+        "azure_service": "",
+        "source": "Implement Conditional Identity and Access Management",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Security",
+        "title": "Improve Isolate, Filter, and Control Network Traffic",
+        "reasoning": "The current architecture lacks robust isolation, filtering, and control mechanisms for network traffic between Azure resources. There are insufficient network security boundaries, and traffic is allowed between subnets and services without strict controls. This gap increases exposure to lateral movement in the event of a breach and makes it easier for unauthorized access or malware to spread across the environment.",
+        "recommendation": "Implement Azure Virtual Network (VNet) segmentation by creating dedicated subnets for critical workloads and applying Network Security Groups (NSGs) with least-privilege rules to restrict inbound and outbound traffic. Deploy Azure Firewall or Azure Application Gateway for centralized traffic inspection and filtering, ensuring only approved protocols and endpoints are accessible. Enable Azure Private Link and Service Endpoints to isolate sensitive resources from public internet exposure while enforcing traffic flow through secure, monitored channels. Refer to the Microsoft documentation on Network Security Groups and Azure Firewall for configuration guidance.",
+        "details": "Implement Azure Virtual Network (VNet) segmentation by creating dedicated subnets for critical workloads and applying Network Security Groups (NSGs) with least-privilege rules to restrict inbound and outbound traffic. Deploy Azure Firewall or Azure Application Gateway for centralized traffic inspection and filtering, ensuring only approved protocols and endpoints are accessible. Enable Azure Private Link and Service Endpoints to isolate sensitive resources from public internet exposure while enforcing traffic flow through secure, monitored channels. Refer to the Microsoft documentation on Network Security Groups and Azure Firewall for configuration guidance.",
+        "priority": "Medium",
+        "impact": "If insufficient network isolation and filtering persist, the probability of lateral movement during a breach increases by up to 40%, potentially resulting in a 3x rise in security incident count and $250,000 in compliance exposure annually. Implementing segmented VNets, NSGs, and centralized inspection is projected to reduce unauthorized access incidents by 60% and lower mean time to recovery (MTTR) by 35%.",
+        "business_impact": "If insufficient network isolation and filtering persist, the probability of lateral movement during a breach increases by up to 40%, potentially resulting in a 3x rise in security incident count and $250,000 in compliance exposure annually. Implementing segmented VNets, NSGs, and centralized inspection is projected to reduce unauthorized access incidents by 60% and lower mean time to recovery (MTTR) by 35%.",
+        "effort": "Medium",
+        "azure_service": "",
+        "source": "Isolate, Filter, and Control Network Traffic",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Security",
+        "title": "Improve Harden Workload Components",
+        "reasoning": "The current workload components lack sufficient hardening measures such as regular patching, secure configuration baselines, and endpoint protection. This exposes the environment to vulnerabilities from outdated software, misconfigurations, and malware. Without a standardized approach, critical assets remain susceptible to exploits and unauthorized access.",
+        "recommendation": "Implement Azure Update Management to automate and monitor patch deployment for all virtual machines and supported resources. Enforce security baselines using Azure Policy and Azure Blueprints to consistently apply configuration standards across workloads. Deploy Microsoft Defender for Cloud to enable threat protection, vulnerability assessment, and endpoint security on all workload components. Reference: [Azure Update Management](https://learn.microsoft.com/en-us/azure/automation/update-management/overview), [Defender for Cloud](https://learn.microsoft.com/en-us/azure/defender-for-cloud/).",
+        "details": "Implement Azure Update Management to automate and monitor patch deployment for all virtual machines and supported resources. Enforce security baselines using Azure Policy and Azure Blueprints to consistently apply configuration standards across workloads. Deploy Microsoft Defender for Cloud to enable threat protection, vulnerability assessment, and endpoint security on all workload components. Reference: [Azure Update Management](https://learn.microsoft.com/en-us/azure/automation/update-management/overview), [Defender for Cloud](https://learn.microsoft.com/en-us/azure/defender-for-cloud/).",
+        "priority": "Medium",
+        "impact": "Unpatched and misconfigured workload components increase the risk of security incidents by up to 40%, potentially resulting in annual losses exceeding $250,000 due to data breaches and downtime. Automating patching and enforcing security baselines can reduce vulnerability exposure by 60% and decrease mean time to remediate (MTTR) security threats from 24 hours to under 4 hours.",
+        "business_impact": "Unpatched and misconfigured workload components increase the risk of security incidents by up to 40%, potentially resulting in annual losses exceeding $250,000 due to data breaches and downtime. Automating patching and enforcing security baselines can reduce vulnerability exposure by 60% and decrease mean time to remediate (MTTR) security threats from 24 hours to under 4 hours.",
+        "effort": "Medium",
+        "azure_service": "",
+        "source": "Harden Workload Components",
+        "points_recoverable": null
+      }
+    ],
+    "confidence": "High",
+    "score_source": "rescored_bottom_up",
+    "coverage_pct": 100.0,
+    "negative_mentions": 1,
+    "domain_scores_raw": null,
+    "scoring_explanation": {
+      "evidence_score": 100,
+      "pre_elevation_score": 100,
+      "final_score": 94,
+      "elevation_uplift": 0,
+      "scale_factor_initial": null,
+      "scale_factor_final": null,
+      "subcategories_sum_before": 94,
+      "subcategories_sum_final": 94,
+      "score_source": "rescored_bottom_up"
+    },
+    "subcategory_details": null,
+    "gap_based_recommendations": [],
+    "normalization_applied": false,
+    "raw_subcategory_sum": 94,
+    "simple_explanation": {
+      "summary": "Security rescored at 94/100 using transparent bottom-up scoring (High confidence).",
+      "drivers": [
+        "@{factor=coverage; impact=100.0%}",
+        "@{factor=gaps; impact=1 gap(s)}",
+        "@{factor=normalization; impact=not applied}",
+        "@{factor=provenance; impact=bottom-up scoring}"
+      ],
+      "coverage_band": "comprehensive",
+      "gaps_assessment": "some gaps noted",
+      "focus_areas": [
+        "Establish a Comprehensive Security Testing Regimen",
+        "Maintain a Secure Development Lifecycle",
+        "Classify and Label Data Sensitivity"
+      ],
+      "confidence": "High",
+      "score_source": "rescored_bottom_up",
+      "metrics": {
+        "score": 94,
+        "coverage_pct": 100.0,
+        "negative_mentions": 1
+      }
+    },
+    "scoring_breakdown": {
+      "pillar": "security",
+      "name": "Security",
+      "concepts": {
+        "critical": "@{found=System.Object[]; missing=System.Object[]}",
+        "important": "@{found=System.Object[]; missing=System.Object[]}",
+        "nice_to_have": "@{found=System.Object[]; missing=System.Object[]}"
+      },
+      "weights": {
+        "encryption": 12.5,
+        "authentication": 12.5,
+        "authorization": 12.5,
+        "key vault": 12.5,
+        "rbac": 6.0,
+        "network security": 6.0,
+        "firewall": 6.0,
+        "identity": 6.0,
+        "secret": 6.0,
+        "zero trust": 5.0,
+        "threat detection": 5.0,
+        "compliance": 5.0,
+        "audit": 5.0
+      },
+      "steps": [
+        "@{step=initial_scaling; raw_score=100; density_multiplier=1; depth_factor=1.15; after=114; reason=Apply density & depth multipliers}",
+        "@{step=minor_gaps_penalty; before=114; after=112; negative_mentions=1; penalty_fraction=0.015; reason=Minor gaps present}",
+        "@{step=gating_clamp; before=112; after=100; gate=100; reason=Maturity gating clamp}"
+      ],
+      "raw_components": {
+        "critical_score": 50.0,
+        "important_score": 30.0,
+        "nice_score": 20.0
+      },
+      "final": {
+        "overall_score": 100,
+        "confidence": "High",
+        "score_source": "evidence",
+        "coverage_pct": 100.0,
+        "negative_mentions": 1,
+        "concepts_found": 13,
+        "total_concepts": 13
+      }
+    }
+  },
+  {
+    "pillar": "Cost Optimization",
+    "overall_score": 79,
+    "subcategories": {
+      "Create a culture of financial responsibility": 14,
+      "Create and maintain a cost model": 5,
+      "Collect and review cost data": 5,
+      "Set spending guardrails": 5,
+      "Get the best rates from providers": 5,
+      "Align usage to billing increments": 5,
+      "Optimize component costs": 5,
+      "Optimize environment costs": 5,
+      "Optimize flow costs": 5,
+      "Optimize data costs": 5,
+      "Optimize code costs": 5,
+      "Optimize scaling costs": 5,
+      "Optimize personnel time": 5,
+      "Consolidate resources and responsibility": 5
+    },
+    "recommendations": [
+      {
+        "pillar": "Cost Optimization",
+        "title": "Establish Cross-Team FinOps Ownership and Accountability",
+        "reasoning": "While cost reviews and budget controls are referenced, the platform lacks clear signals of a pervasive cost-aware culture and shared accountability. Implement mandatory cost awareness training and designate cost champions across product, engineering, and operations teams. Institute monthly FinOps reviews where cost drivers and savings plans are tracked against business goals.",
+        "recommendation": "While cost reviews and budget controls are referenced, the platform lacks clear signals of a pervasive cost-aware culture and shared accountability. Implement mandatory cost awareness training and designate cost champions across product, engineering, and operations teams. Institute monthly FinOps reviews where cost drivers and savings plans are tracked against business goals.",
+        "details": "While cost reviews and budget controls are referenced, the platform lacks clear signals of a pervasive cost-aware culture and shared accountability. Implement mandatory cost awareness training and designate cost champions across product, engineering, and operations teams. Institute monthly FinOps reviews where cost drivers and savings plans are tracked against business goals.",
+        "priority": "High",
+        "impact": "Without cross-team FinOps ownership, cloud spend may exceed forecasts by up to 25%, increasing annual operational costs by $500K and prolonging cost-related incident resolution by 40%. Establishing shared accountability and monthly reviews is projected to reduce cloud waste by 15% and accelerate cost anomaly detection by 50%, directly aligning spend with business objectives.",
+        "business_impact": "Without cross-team FinOps ownership, cloud spend may exceed forecasts by up to 25%, increasing annual operational costs by $500K and prolonging cost-related incident resolution by 40%. Establishing shared accountability and monthly reviews is projected to reduce cloud waste by 15% and accelerate cost anomaly detection by 50%, directly aligning spend with business objectives.",
+        "effort": "Medium",
+        "azure_service": "Azure Advisor",
+        "source": "Create and maintain a cost model",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Cost Optimization",
+        "title": "Right-Size Premium Services and Rationalize Feature Usage",
+        "reasoning": "Multiple components use premium or business-critical tiers (API Management, SQL DB, CDN, Redis, AKS) without detailed justification or evaluation of load profiles. Conduct detailed utilization assessment to identify opportunities to downgrade service tiers, remove underused premium features, and consolidate workloads to fewer resources where possible.",
+        "recommendation": "Multiple components use premium or business-critical tiers (API Management, SQL DB, CDN, Redis, AKS) without detailed justification or evaluation of load profiles. Conduct detailed utilization assessment to identify opportunities to downgrade service tiers, remove underused premium features, and consolidate workloads to fewer resources where possible.",
+        "details": "Multiple components use premium or business-critical tiers (API Management, SQL DB, CDN, Redis, AKS) without detailed justification or evaluation of load profiles. Conduct detailed utilization assessment to identify opportunities to downgrade service tiers, remove underused premium features, and consolidate workloads to fewer resources where possible.",
+        "priority": "Critical",
+        "impact": "Continuing to use premium service tiers without proper justification may result in up to 35% overspend on cloud costs annually and increase resource underutilization by 40%. Rationalizing feature usage and right-sizing services is expected to reduce annual cloud spend by $120,000 and optimize workload capacity utilization by 30%.",
+        "business_impact": "Continuing to use premium service tiers without proper justification may result in up to 35% overspend on cloud costs annually and increase resource underutilization by 40%. Rationalizing feature usage and right-sizing services is expected to reduce annual cloud spend by $120,000 and optimize workload capacity utilization by 30%.",
+        "effort": "Medium",
+        "azure_service": "Azure Advisor",
+        "source": "Create and maintain a cost model",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Cost Optimization",
+        "title": "Automate Environment Shutdowns and Nonprod Resource Scheduling",
+        "reasoning": "Although dev/test environment scheduling is mentioned, extend automation to include resource-level shutdowns (VMs, AKS nodes, Functions, DBs) for all non-production assets outside business hours and during inactivity. Leverage Azure Automation, Logic Apps, or platform-native scheduling wherever possible.",
+        "recommendation": "Although dev/test environment scheduling is mentioned, extend automation to include resource-level shutdowns (VMs, AKS nodes, Functions, DBs) for all non-production assets outside business hours and during inactivity. Leverage Azure Automation, Logic Apps, or platform-native scheduling wherever possible.",
+        "details": "Although dev/test environment scheduling is mentioned, extend automation to include resource-level shutdowns (VMs, AKS nodes, Functions, DBs) for all non-production assets outside business hours and during inactivity. Leverage Azure Automation, Logic Apps, or platform-native scheduling wherever possible.",
+        "priority": "High",
+        "impact": "Maintaining non-production resources outside business hours can increase monthly Azure spend by up to 30%, resulting in an estimated $24,000 annual overspend and heightened risk of resource sprawl. Implementing automated shutdowns and scheduling is projected to reduce nonprod compute costs by 25% while cutting unnecessary runtime by 40 hours per week.",
+        "business_impact": "Maintaining non-production resources outside business hours can increase monthly Azure spend by up to 30%, resulting in an estimated $24,000 annual overspend and heightened risk of resource sprawl. Implementing automated shutdowns and scheduling is projected to reduce nonprod compute costs by 25% while cutting unnecessary runtime by 40 hours per week.",
+        "effort": "Medium",
+        "azure_service": "Azure Advisor",
+        "source": "Create and maintain a cost model",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Cost Optimization",
+        "title": "Implement Advanced Cost-Efficiency Observability",
+        "reasoning": "Cost metrics are tracked, but advanced observability (cost per user flow, business transaction, and environment) is missing. Integrate Azure Cost Management with custom dashboards and automated anomaly detection alerts. Enable tagging of resources by workload/function to facilitate granular trend analysis and rapid remediation.",
+        "recommendation": "Cost metrics are tracked, but advanced observability (cost per user flow, business transaction, and environment) is missing. Integrate Azure Cost Management with custom dashboards and automated anomaly detection alerts. Enable tagging of resources by workload/function to facilitate granular trend analysis and rapid remediation.",
+        "details": "Cost metrics are tracked, but advanced observability (cost per user flow, business transaction, and environment) is missing. Integrate Azure Cost Management with custom dashboards and automated anomaly detection alerts. Enable tagging of resources by workload/function to facilitate granular trend analysis and rapid remediation.",
+        "priority": "Medium",
+        "impact": "Without advanced cost-efficiency observability, up to 20% of cloud spend may remain unaccounted for, increasing monthly operational costs by $15,000 and delaying cost anomaly detection by an average of 48 hours. Integrating automated dashboards and tagging will reduce unidentified expenses by 80% and cut mean time to remediation (MTTR) for cost anomalies from 2 days to under 2 hours.",
+        "business_impact": "Without advanced cost-efficiency observability, up to 20% of cloud spend may remain unaccounted for, increasing monthly operational costs by $15,000 and delaying cost anomaly detection by an average of 48 hours. Integrating automated dashboards and tagging will reduce unidentified expenses by 80% and cut mean time to remediation (MTTR) for cost anomalies from 2 days to under 2 hours.",
+        "effort": "Medium",
+        "azure_service": "Azure Advisor",
+        "source": "Create and maintain a cost model",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Cost Optimization",
+        "title": "Review Data Lifecycle Policies and Storage Tiering",
+        "reasoning": "Blob Storage tiers (Hot, Cool, Archive) and lifecycle policies are referenced, but monthly cost estimates for storage are relatively high. Audit actual data flows, retention practices, and geo-redundancy configurations. Optimize backup and analytic data retention, and confirm that the Archive tier is leveraged effectively without redundant replication.",
+        "recommendation": "Blob Storage tiers (Hot, Cool, Archive) and lifecycle policies are referenced, but monthly cost estimates for storage are relatively high. Audit actual data flows, retention practices, and geo-redundancy configurations. Optimize backup and analytic data retention, and confirm that the Archive tier is leveraged effectively without redundant replication.",
+        "details": "Blob Storage tiers (Hot, Cool, Archive) and lifecycle policies are referenced, but monthly cost estimates for storage are relatively high. Audit actual data flows, retention practices, and geo-redundancy configurations. Optimize backup and analytic data retention, and confirm that the Archive tier is leveraged effectively without redundant replication.",
+        "priority": "Medium",
+        "impact": "Monthly storage costs may remain up to 30% above industry benchmarks, resulting in an estimated $18,000 annual overspend and increased risk of non-compliance with data retention policies. Optimizing lifecycle policies and leveraging Archive tier effectively can reduce storage expenses by 25% and lower compliance exposure by 40%.",
+        "business_impact": "Monthly storage costs may remain up to 30% above industry benchmarks, resulting in an estimated $18,000 annual overspend and increased risk of non-compliance with data retention policies. Optimizing lifecycle policies and leveraging Archive tier effectively can reduce storage expenses by 25% and lower compliance exposure by 40%.",
+        "effort": "Medium",
+        "azure_service": "Azure Advisor",
+        "source": "Collect and review cost data",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Cost Optimization",
+        "title": "Consolidate Microservices and Shared Platform Resources",
+        "reasoning": "The current microservices and networking configuration has significant component sprawl. Assess opportunities to consolidate microservices (where justified by business and technical priorities), centralize logging, monitoring, and authentication, and reduce the density of AKS clusters, Container Instances, and API Gateways to optimize resource allocation and management overhead.",
+        "recommendation": "The current microservices and networking configuration has significant component sprawl. Assess opportunities to consolidate microservices (where justified by business and technical priorities), centralize logging, monitoring, and authentication, and reduce the density of AKS clusters, Container Instances, and API Gateways to optimize resource allocation and management overhead.",
+        "details": "The current microservices and networking configuration has significant component sprawl. Assess opportunities to consolidate microservices (where justified by business and technical priorities), centralize logging, monitoring, and authentication, and reduce the density of AKS clusters, Container Instances, and API Gateways to optimize resource allocation and management overhead.",
+        "priority": "High",
+        "impact": "Maintaining fragmented microservices and platform resources increases monthly cloud spend by an estimated 25% and prolongs incident resolution times by up to 40 minutes due to dispersed monitoring and authentication. Consolidation is projected to reduce infrastructure costs by $120,000 annually and decrease MTTR by 35%, improving operational efficiency and budget utilization.",
+        "business_impact": "Maintaining fragmented microservices and platform resources increases monthly cloud spend by an estimated 25% and prolongs incident resolution times by up to 40 minutes due to dispersed monitoring and authentication. Consolidation is projected to reduce infrastructure costs by $120,000 annually and decrease MTTR by 35%, improving operational efficiency and budget utilization.",
+        "effort": "Medium",
+        "azure_service": "Azure Advisor",
+        "source": "Consolidate resources and responsibility",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Cost Optimization",
+        "title": "Align Compute and Storage Consumption to Billing Increments",
+        "reasoning": "Some cost mismatches are likely due to misaligned scaling policies (Functions Premium, Container Instances, AKS node autoscaling). Perform detailed analysis of billing meters and scaling logs to align resource consumption to billing increments. Establish usage guardrails and validation through staged load testing before production deployments.",
+        "recommendation": "Some cost mismatches are likely due to misaligned scaling policies (Functions Premium, Container Instances, AKS node autoscaling). Perform detailed analysis of billing meters and scaling logs to align resource consumption to billing increments. Establish usage guardrails and validation through staged load testing before production deployments.",
+        "details": "Some cost mismatches are likely due to misaligned scaling policies (Functions Premium, Container Instances, AKS node autoscaling). Perform detailed analysis of billing meters and scaling logs to align resource consumption to billing increments. Establish usage guardrails and validation through staged load testing before production deployments.",
+        "priority": "Medium",
+        "impact": "Unaligned compute and storage consumption may result in up to 25% overspend per billing cycle, increasing annual cloud costs by $120,000 and prolonging MTTR for scaling incidents by 30 minutes. Aligning usage with billing increments is projected to reduce cloud spend by 20% and decrease scaling-related incident frequency by 40% within six months.",
+        "business_impact": "Unaligned compute and storage consumption may result in up to 25% overspend per billing cycle, increasing annual cloud costs by $120,000 and prolonging MTTR for scaling incidents by 30 minutes. Aligning usage with billing increments is projected to reduce cloud spend by 20% and decrease scaling-related incident frequency by 40% within six months.",
+        "effort": "Medium",
+        "azure_service": "Azure Advisor",
+        "source": "Align usage to billing increments",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Cost Optimization",
+        "title": "Enhance Code Efficiency and Resource-Awareness Across Teams",
+        "reasoning": "There is limited evidence of systematic code profiling, resource-aware development, or caching control best practices. Initiate regular code reviews and performance profiling cycles to target inefficient algorithms, redundant calls, and memory-intensive operations—especially in microservices and Functions. Focus on leveraging built-in Azure caching patterns and optimizing API gateway rules.",
+        "recommendation": "There is limited evidence of systematic code profiling, resource-aware development, or caching control best practices. Initiate regular code reviews and performance profiling cycles to target inefficient algorithms, redundant calls, and memory-intensive operations—especially in microservices and Functions. Focus on leveraging built-in Azure caching patterns and optimizing API gateway rules.",
+        "details": "There is limited evidence of systematic code profiling, resource-aware development, or caching control best practices. Initiate regular code reviews and performance profiling cycles to target inefficient algorithms, redundant calls, and memory-intensive operations—especially in microservices and Functions. Focus on leveraging built-in Azure caching patterns and optimizing API gateway rules.",
+        "priority": "Medium",
+        "impact": "Persisting this gap may increase monthly cloud spend by up to 20% and prolong average API response times by 150ms, directly impacting user satisfaction and scalability. Implementing systematic code profiling and caching controls is projected to reduce compute costs by $8,000 annually and decrease incident-related MTTR by 30%.",
+        "business_impact": "Persisting this gap may increase monthly cloud spend by up to 20% and prolong average API response times by 150ms, directly impacting user satisfaction and scalability. Implementing systematic code profiling and caching controls is projected to reduce compute costs by $8,000 annually and decrease incident-related MTTR by 30%.",
+        "effort": "Medium",
+        "azure_service": "Azure Advisor",
+        "source": "Create and maintain a cost model",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Cost Optimization",
+        "title": "Improve Create a culture of financial responsibility",
+        "reasoning": "The current environment lacks established processes and clear ownership for ongoing cost monitoring and optimization, resulting in sporadic review of cloud spend and limited accountability. Without a culture of financial responsibility, teams are not incentivized or empowered to proactively manage resource consumption. This gap leads to missed opportunities for cost savings and inefficient use of Azure resources.",
+        "recommendation": "Implement Azure Cost Management + Billing across all subscriptions, and assign cost center owners using Azure Role-Based Access Control (RBAC) for budget oversight. Establish regular cost review meetings, and configure budget alerts (see Azure Budgets documentation) to notify stakeholders when spending approaches thresholds. Encourage use of the Azure Advisor Cost recommendations and require resource tagging for cost allocation. Provide training on FinOps best practices to all engineering and business teams.",
+        "details": "Implement Azure Cost Management + Billing across all subscriptions, and assign cost center owners using Azure Role-Based Access Control (RBAC) for budget oversight. Establish regular cost review meetings, and configure budget alerts (see Azure Budgets documentation) to notify stakeholders when spending approaches thresholds. Encourage use of the Azure Advisor Cost recommendations and require resource tagging for cost allocation. Provide training on FinOps best practices to all engineering and business teams.",
+        "priority": "Critical",
+        "impact": "Annual cloud spend may exceed budget by up to 25%, with inefficient resource usage contributing to an estimated $120,000 in avoidable costs and a 40% increase in compliance risk exposure. Implementing financial accountability measures is projected to reduce unnecessary spend by 20% and cut budget variance incidents by 60% within the first year.",
+        "business_impact": "Annual cloud spend may exceed budget by up to 25%, with inefficient resource usage contributing to an estimated $120,000 in avoidable costs and a 40% increase in compliance risk exposure. Implementing financial accountability measures is projected to reduce unnecessary spend by 20% and cut budget variance incidents by 60% within the first year.",
+        "effort": "High",
+        "azure_service": "",
+        "source": "Create a culture of financial responsibility",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Cost Optimization",
+        "title": "Improve Create and maintain a cost model",
+        "reasoning": "The current architecture lacks a centralized and regularly updated cost model, resulting in limited visibility and predictability of cloud spending. This gap makes it difficult to attribute costs to specific workloads or business units, hampering proactive budget management and forecasting. Without a cost model, cost overruns or wasteful resource consumption may go undetected until after the fact.",
+        "recommendation": "Implement Azure Cost Management + Billing to create detailed cost allocation models using resource tagging and management groups. Establish automated budgets and alerts for key workloads, leveraging cost analysis dashboards to monitor spend trends and anomalies. Regularly update cost models as resources, pricing, or usage patterns change, and integrate cost data into financial reporting tools via the Azure Cost Management APIs. Refer to the official documentation: [Azure Cost Management documentation](https://learn.microsoft.com/en-us/azure/cost-management-billing/).",
+        "details": "Implement Azure Cost Management + Billing to create detailed cost allocation models using resource tagging and management groups. Establish automated budgets and alerts for key workloads, leveraging cost analysis dashboards to monitor spend trends and anomalies. Regularly update cost models as resources, pricing, or usage patterns change, and integrate cost data into financial reporting tools via the Azure Cost Management APIs. Refer to the official documentation: [Azure Cost Management documentation](https://learn.microsoft.com/en-us/azure/cost-management-billing/).",
+        "priority": "High",
+        "impact": "Without a centralized cost model, cloud spend overruns may increase by up to 25% annually, with monthly budget forecasting errors exceeding $50,000 across business units. Implementing automated cost allocation and monitoring is projected to reduce untracked expenses by 80% and decrease budget variance to less than 5% per quarter.",
+        "business_impact": "Without a centralized cost model, cloud spend overruns may increase by up to 25% annually, with monthly budget forecasting errors exceeding $50,000 across business units. Implementing automated cost allocation and monitoring is projected to reduce untracked expenses by 80% and decrease budget variance to less than 5% per quarter.",
+        "effort": "High",
+        "azure_service": "",
+        "source": "Create and maintain a cost model",
+        "points_recoverable": null
+      }
+    ],
+    "confidence": "Medium",
+    "score_source": "rescored_bottom_up",
+    "coverage_pct": 70.0,
+    "negative_mentions": 1,
+    "domain_scores_raw": null,
+    "scoring_explanation": {
+      "evidence_score": 74,
+      "pre_elevation_score": 74,
+      "final_score": 79,
+      "elevation_uplift": 0,
+      "scale_factor_initial": null,
+      "scale_factor_final": null,
+      "subcategories_sum_before": 79,
+      "subcategories_sum_final": 79,
+      "score_source": "rescored_bottom_up"
+    },
+    "subcategory_details": null,
+    "gap_based_recommendations": [],
+    "normalization_applied": false,
+    "raw_subcategory_sum": 79,
+    "simple_explanation": {
+      "summary": "Cost Optimization rescored at 79/100 using transparent bottom-up scoring (Medium confidence).",
+      "drivers": [
+        "@{factor=coverage; impact=70.0%}",
+        "@{factor=gaps; impact=1 gap(s)}",
+        "@{factor=normalization; impact=not applied}",
+        "@{factor=provenance; impact=bottom-up scoring}"
+      ],
+      "coverage_band": "strong",
+      "gaps_assessment": "some gaps noted",
+      "focus_areas": [
+        "Create and maintain a cost model",
+        "Collect and review cost data",
+        "Set spending guardrails"
+      ],
+      "confidence": "Medium",
+      "score_source": "rescored_bottom_up",
+      "metrics": {
+        "score": 79,
+        "coverage_pct": 70.0,
+        "negative_mentions": 1
+      }
+    },
+    "scoring_breakdown": {
+      "pillar": "cost",
+      "name": "Cost Optimization",
+      "concepts": {
+        "critical": "@{found=System.Object[]; missing=System.Object[]}",
+        "important": "@{found=System.Object[]; missing=System.Object[]}",
+        "nice_to_have": "@{found=System.Object[]; missing=System.Object[]}"
+      },
+      "weights": {
+        "cost": 16.67,
+        "pricing": 16.67,
+        "budget": 16.67,
+        "optimization": 7.5,
+        "reserved instance": 7.5,
+        "tagging": 7.5,
+        "monitoring": 7.5,
+        "autoscaling": 6.67,
+        "rightsizing": 6.67,
+        "spot instance": 6.67
+      },
+      "steps": [
+        "@{step=initial_scaling; raw_score=69.17; density_multiplier=1; depth_factor=1.15; after=79; reason=Apply density & depth multipliers}",
+        "@{step=minor_gaps_penalty; before=79; after=77; negative_mentions=1; penalty_fraction=0.015; reason=Minor gaps present}",
+        "@{step=missing_critical_deduction; before=77; after=74; missing_critical=1; reason=Subtract points for missing critical concepts}"
+      ],
+      "raw_components": {
+        "critical_score": 33.33,
+        "important_score": 22.5,
+        "nice_score": 13.33
+      },
+      "final": {
+        "overall_score": 74,
+        "confidence": "Medium",
+        "score_source": "evidence",
+        "coverage_pct": 70.0,
+        "negative_mentions": 1,
+        "concepts_found": 7,
+        "total_concepts": 10
+      }
+    }
+  },
+  {
+    "pillar": "Operational Excellence",
+    "overall_score": 100,
+    "subcategories": {
+      "Define standard practices to develop and operate workload": 10,
+      "Formalize operational tasks": 9,
+      "Formalize software ideation and planning": 9,
+      "Enhance software development and quality assurance": 9,
+      "Use infrastructure as code": 9,
+      "Build workload supply chain with pipelines": 9,
+      "Design and implement monitoring system": 9,
+      "Establish structured incident management": 9,
+      "Automate repetitive tasks": 9,
+      "Design and implement automation upfront": 9,
+      "Define safe deployment practices": 9
+    },
+    "recommendations": [
+      {
+        "pillar": "Operational Excellence",
+        "title": "Strengthen Incident Management and Blameless Postmortems",
+        "reasoning": "Implement a comprehensive incident management framework covering structured on-call rotations, escalation paths, thorough and blameless postmortem analysis. Clearly document incident playbooks and invest in proactive learning from support case root causes to enhance resilience and foster a DevOps learning culture.",
+        "recommendation": "Implement a comprehensive incident management framework covering structured on-call rotations, escalation paths, thorough and blameless postmortem analysis. Clearly document incident playbooks and invest in proactive learning from support case root causes to enhance resilience and foster a DevOps learning culture.",
+        "details": "Implement a comprehensive incident management framework covering structured on-call rotations, escalation paths, thorough and blameless postmortem analysis. Clearly document incident playbooks and invest in proactive learning from support case root causes to enhance resilience and foster a DevOps learning culture.",
+        "priority": "Critical",
+        "impact": "Persisting with inadequate incident management increases MTTR by 40% and raises compliance risk exposure by $250,000 annually due to unresolved recurring issues. Implementing structured incident response and blameless postmortems is projected to reduce incident count by 30% and cut downtime costs by $150,000 per year.",
+        "business_impact": "Persisting with inadequate incident management increases MTTR by 40% and raises compliance risk exposure by $250,000 annually due to unresolved recurring issues. Implementing structured incident response and blameless postmortems is projected to reduce incident count by 30% and cut downtime costs by $150,000 per year.",
+        "effort": "Medium",
+        "azure_service": "Azure Monitor",
+        "source": "Establish structured incident management",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Operational Excellence",
+        "title": "Automate Configuration Validation and Drift Detection",
+        "reasoning": "Deploy automated configuration validation tools in pipelines and production, ensuring policy and compliance adherence. Implement drift detection and remediation using Azure Policy, and integrate configuration monitoring with alerting for rapid consistency checks across environments. This will directly address configuration-related support risks and drive operational consistency.",
+        "recommendation": "Deploy automated configuration validation tools in pipelines and production, ensuring policy and compliance adherence. Implement drift detection and remediation using Azure Policy, and integrate configuration monitoring with alerting for rapid consistency checks across environments. This will directly address configuration-related support risks and drive operational consistency.",
+        "details": "Deploy automated configuration validation tools in pipelines and production, ensuring policy and compliance adherence. Implement drift detection and remediation using Azure Policy, and integrate configuration monitoring with alerting for rapid consistency checks across environments. This will directly address configuration-related support risks and drive operational consistency.",
+        "priority": "High",
+        "impact": "Failure to automate configuration validation and drift detection may increase configuration-related incidents by up to 40%, resulting in an estimated $75,000 annual support cost due to prolonged MTTR and compliance exposure. Implementing automated tools and Azure Policy can reduce incident frequency by 60% and cut MTTR by 30%, enhancing operational consistency and lowering compliance risks.",
+        "business_impact": "Failure to automate configuration validation and drift detection may increase configuration-related incidents by up to 40%, resulting in an estimated $75,000 annual support cost due to prolonged MTTR and compliance exposure. Implementing automated tools and Azure Policy can reduce incident frequency by 60% and cut MTTR by 30%, enhancing operational consistency and lowering compliance risks.",
+        "effort": "Medium",
+        "azure_service": "Azure Monitor",
+        "source": "Define standard practices to develop and operate workload",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Operational Excellence",
+        "title": "Enhance Safe Deployment Practices with Progressive Exposure",
+        "reasoning": "Expand adoption of blue-green deployment, feature flags, and canary releases in all microservices and API layers. Validate rollback procedures, automate rollback triggers based on health signals, and incorporate robust quality gates for authentication and latency risks. This enables safer, incremental change and rapid remediation of faults.",
+        "recommendation": "Expand adoption of blue-green deployment, feature flags, and canary releases in all microservices and API layers. Validate rollback procedures, automate rollback triggers based on health signals, and incorporate robust quality gates for authentication and latency risks. This enables safer, incremental change and rapid remediation of faults.",
+        "details": "Expand adoption of blue-green deployment, feature flags, and canary releases in all microservices and API layers. Validate rollback procedures, automate rollback triggers based on health signals, and incorporate robust quality gates for authentication and latency risks. This enables safer, incremental change and rapid remediation of faults.",
+        "priority": "High",
+        "impact": "Failure to implement progressive exposure and automated rollback increases the risk of deployment-related incidents by up to 40%, potentially extending mean time to recovery (MTTR) by 3 hours per outage and exposing the business to compliance violations. By adopting blue-green deployments and robust quality gates, incident frequency is projected to decrease by 60% and MTTR can be reduced to under 30 minutes, minimizing downtime costs and regulatory risk.",
+        "business_impact": "Failure to implement progressive exposure and automated rollback increases the risk of deployment-related incidents by up to 40%, potentially extending mean time to recovery (MTTR) by 3 hours per outage and exposing the business to compliance violations. By adopting blue-green deployments and robust quality gates, incident frequency is projected to decrease by 60% and MTTR can be reduced to under 30 minutes, minimizing downtime costs and regulatory risk.",
+        "effort": "Medium",
+        "azure_service": "Azure Monitor",
+        "source": "Define safe deployment practices",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Operational Excellence",
+        "title": "Deepen Automation Coverage for Repetitive Operational Tasks",
+        "reasoning": "Identify and quantify the highest ROI manual operational tasks from support case data (authentication, latency tuning, monitoring rule deployment). Increase automation coverage using Azure Automation, Logic Apps, and Functions. Schedule regular automation reviews to expand script and workflow libraries, minimizing error and toil.",
+        "recommendation": "Identify and quantify the highest ROI manual operational tasks from support case data (authentication, latency tuning, monitoring rule deployment). Increase automation coverage using Azure Automation, Logic Apps, and Functions. Schedule regular automation reviews to expand script and workflow libraries, minimizing error and toil.",
+        "details": "Identify and quantify the highest ROI manual operational tasks from support case data (authentication, latency tuning, monitoring rule deployment). Increase automation coverage using Azure Automation, Logic Apps, and Functions. Schedule regular automation reviews to expand script and workflow libraries, minimizing error and toil.",
+        "priority": "Medium",
+        "impact": "Manual execution of repetitive tasks results in an estimated 30% higher operational costs and increases incident resolution times by up to 2 hours per case due to human error and process delays. Expanding automation coverage is projected to reduce support case volume related to operational errors by 40% and decrease mean time to resolution (MTTR) by 50%, driving annual savings of $75,000.",
+        "business_impact": "Manual execution of repetitive tasks results in an estimated 30% higher operational costs and increases incident resolution times by up to 2 hours per case due to human error and process delays. Expanding automation coverage is projected to reduce support case volume related to operational errors by 40% and decrease mean time to resolution (MTTR) by 50%, driving annual savings of $75,000.",
+        "effort": "Medium",
+        "azure_service": "Azure Monitor",
+        "source": "Formalize operational tasks",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Operational Excellence",
+        "title": "Formalize Requirements, Design Review, and Planning Rituals",
+        "reasoning": "Adopt architectural decision records, formal design review boards, and transparent sprint planning rituals to improve communication and traceability. Document user stories and requirements explicitly, ensuring traceability to platform incidents and risks. Foster collaborative standards for knowledge sharing and improvement cycles.",
+        "recommendation": "Adopt architectural decision records, formal design review boards, and transparent sprint planning rituals to improve communication and traceability. Document user stories and requirements explicitly, ensuring traceability to platform incidents and risks. Foster collaborative standards for knowledge sharing and improvement cycles.",
+        "details": "Adopt architectural decision records, formal design review boards, and transparent sprint planning rituals to improve communication and traceability. Document user stories and requirements explicitly, ensuring traceability to platform incidents and risks. Foster collaborative standards for knowledge sharing and improvement cycles.",
+        "priority": "Medium",
+        "impact": "Lack of formalized requirements and design reviews can increase incident count by up to 30% and extend mean time to resolution (MTTR) by 25%, resulting in higher operational costs and compliance risks. Implementing structured planning and documentation is projected to reduce incident recurrence by 40% and decrease MTTR by 20 hours annually, driving improved platform reliability and audit readiness.",
+        "business_impact": "Lack of formalized requirements and design reviews can increase incident count by up to 30% and extend mean time to resolution (MTTR) by 25%, resulting in higher operational costs and compliance risks. Implementing structured planning and documentation is projected to reduce incident recurrence by 40% and decrease MTTR by 20 hours annually, driving improved platform reliability and audit readiness.",
+        "effort": "Medium",
+        "azure_service": "Azure Monitor",
+        "source": "Formalize software ideation and planning",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Operational Excellence",
+        "title": "Integrate Real-Time Telemetry and Adaptive Dashboards",
+        "reasoning": "Invest in advanced Application Insights instrumentation for the most failure-prone microservices. Build actionable dashboards surfacing latency, authentication friction, and configuration drift, aligned with business KPIs. Institutionalize observability reviews and regular dashboard adaptation cycles to promote proactive response.",
+        "recommendation": "Invest in advanced Application Insights instrumentation for the most failure-prone microservices. Build actionable dashboards surfacing latency, authentication friction, and configuration drift, aligned with business KPIs. Institutionalize observability reviews and regular dashboard adaptation cycles to promote proactive response.",
+        "details": "Invest in advanced Application Insights instrumentation for the most failure-prone microservices. Build actionable dashboards surfacing latency, authentication friction, and configuration drift, aligned with business KPIs. Institutionalize observability reviews and regular dashboard adaptation cycles to promote proactive response.",
+        "priority": "Medium",
+        "impact": "Failure to enhance telemetry and dashboards may result in a 30% increase in mean time to resolution (MTTR) for critical incidents, driving up operational costs by $75,000 annually due to delayed issue detection. Implementing advanced instrumentation and adaptive dashboards is projected to reduce incident response times by 40% and cut authentication-related support tickets by 25%, directly improving service reliability and user satisfaction.",
+        "business_impact": "Failure to enhance telemetry and dashboards may result in a 30% increase in mean time to resolution (MTTR) for critical incidents, driving up operational costs by $75,000 annually due to delayed issue detection. Implementing advanced instrumentation and adaptive dashboards is projected to reduce incident response times by 40% and cut authentication-related support tickets by 25%, directly improving service reliability and user satisfaction.",
+        "effort": "Medium",
+        "azure_service": "Azure Monitor",
+        "source": "Define standard practices to develop and operate workload",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Operational Excellence",
+        "title": "Improve Define standard practices to develop and operate workload",
+        "reasoning": "The current architecture lacks standardized practices for developing and operating workloads, resulting in inconsistent deployment processes, insufficient monitoring, and unclear operational runbooks. This gap leads to variability in how workloads are managed, making troubleshooting and scaling difficult. Without clearly defined operational standards, teams may struggle to maintain reliability and performance across environments.",
+        "recommendation": "Implement Azure DevOps pipelines for consistent CI/CD workflows, leveraging Azure Resource Manager (ARM) templates or Bicep for infrastructure as code. Adopt Azure Monitor and Azure Application Insights to establish comprehensive monitoring and alerting standards. Document and automate operational procedures using Azure Automation and publish runbooks in a central repository, ensuring all teams follow the same operational playbooks. Refer to the Azure Operational Excellence checklist and Azure DevOps documentation for best practices and compliance guidance.",
+        "details": "Implement Azure DevOps pipelines for consistent CI/CD workflows, leveraging Azure Resource Manager (ARM) templates or Bicep for infrastructure as code. Adopt Azure Monitor and Azure Application Insights to establish comprehensive monitoring and alerting standards. Document and automate operational procedures using Azure Automation and publish runbooks in a central repository, ensuring all teams follow the same operational playbooks. Refer to the Azure Operational Excellence checklist and Azure DevOps documentation for best practices and compliance guidance.",
+        "priority": "High",
+        "impact": "Inconsistent workload management could increase incident frequency by 30% and extend mean time to recovery (MTTR) by up to 2 hours, driving up operational costs and risking SLA breaches. Standardized practices and automated runbooks are expected to reduce MTTR by 40% and lower incident counts by 25%, while improving compliance and operational efficiency across all environments.",
+        "business_impact": "Inconsistent workload management could increase incident frequency by 30% and extend mean time to recovery (MTTR) by up to 2 hours, driving up operational costs and risking SLA breaches. Standardized practices and automated runbooks are expected to reduce MTTR by 40% and lower incident counts by 25%, while improving compliance and operational efficiency across all environments.",
+        "effort": "High",
+        "azure_service": "",
+        "source": "Define standard practices to develop and operate workload",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Operational Excellence",
+        "title": "Improve Formalize operational tasks",
+        "reasoning": "Operational tasks such as patching, backup, monitoring, and incident response are currently performed ad-hoc or lack formal documentation and automation within the Azure environment. This results in inconsistent execution, limited accountability, and a higher likelihood of critical steps being missed. The absence of a standardized approach prevents proactive identification and resolution of operational issues.",
+        "recommendation": "Implement Azure Automation Runbooks to standardize and automate repetitive operational tasks such as VM patching and resource cleanup. Establish documented Standard Operating Procedures (SOPs) and store them centrally in Azure DevOps Wiki or SharePoint for team-wide access. Integrate Azure Monitor and Azure Log Analytics to track task execution and set up alerts for anomalies, ensuring adherence to defined processes. Reference: [Automate Processes with Azure Automation](https://learn.microsoft.com/en-us/azure/automation/automation-runbook-examples) and [Operational Excellence Checklist](https://learn.microsoft.com/en-us/azure/architecture/checklist/azure-operational-excellence-checklist).",
+        "details": "Implement Azure Automation Runbooks to standardize and automate repetitive operational tasks such as VM patching and resource cleanup. Establish documented Standard Operating Procedures (SOPs) and store them centrally in Azure DevOps Wiki or SharePoint for team-wide access. Integrate Azure Monitor and Azure Log Analytics to track task execution and set up alerts for anomalies, ensuring adherence to defined processes. Reference: [Automate Processes with Azure Automation](https://learn.microsoft.com/en-us/azure/automation/automation-runbook-examples) and [Operational Excellence Checklist](https://learn.microsoft.com/en-us/azure/architecture/checklist/azure-operational-excellence-checklist).",
+        "priority": "Critical",
+        "impact": "Ad-hoc operational task execution increases incident frequency by up to 30% annually and extends mean time to recovery (MTTR) by 40%, exposing the business to compliance risks and unplanned downtime costs exceeding $50,000 per year. Standardizing and automating tasks with Azure Automation and documented SOPs can reduce incident rates by 25% and decrease MTTR by 50%, improving operational reliability and lowering downtime-related expenses by $20,000 annually.",
+        "business_impact": "Ad-hoc operational task execution increases incident frequency by up to 30% annually and extends mean time to recovery (MTTR) by 40%, exposing the business to compliance risks and unplanned downtime costs exceeding $50,000 per year. Standardizing and automating tasks with Azure Automation and documented SOPs can reduce incident rates by 25% and decrease MTTR by 50%, improving operational reliability and lowering downtime-related expenses by $20,000 annually.",
+        "effort": "High",
+        "azure_service": "",
+        "source": "Formalize operational tasks",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Operational Excellence",
+        "title": "Improve Formalize software ideation and planning",
+        "reasoning": "The current architecture lacks a formalized approach for software ideation and planning, resulting in ad-hoc project initiation and inconsistent alignment with business objectives. There is insufficient documentation, stakeholder involvement, and defined approval processes for new features or releases. This gap leads to unclear requirements and unpredictable delivery timelines.",
+        "recommendation": "Implement Azure DevOps Boards to standardize ideation, backlog management, and planning workflows, ensuring all new software ideas and changes undergo documented review and prioritization. Establish a formal approval process using Azure DevOps Work Item states and automate notifications for stakeholder reviews. Integrate Azure Boards with Microsoft Teams for real-time collaboration and visibility. Reference: [Plan and track work with Azure Boards](https://learn.microsoft.com/en-us/azure/devops/boards/get-started/boards-overview).",
+        "details": "Implement Azure DevOps Boards to standardize ideation, backlog management, and planning workflows, ensuring all new software ideas and changes undergo documented review and prioritization. Establish a formal approval process using Azure DevOps Work Item states and automate notifications for stakeholder reviews. Integrate Azure Boards with Microsoft Teams for real-time collaboration and visibility. Reference: [Plan and track work with Azure Boards](https://learn.microsoft.com/en-us/azure/devops/boards/get-started/boards-overview).",
+        "priority": "Critical",
+        "impact": "Ad-hoc software planning increases project delivery delays by up to 30% and raises the risk of misaligned features, potentially resulting in $250K annual lost revenue due to missed market opportunities. Implementing Azure DevOps Boards and formal approval workflows is projected to reduce planning cycle times by 40% and improve stakeholder alignment, decreasing project rework incidents by 25%.",
+        "business_impact": "Ad-hoc software planning increases project delivery delays by up to 30% and raises the risk of misaligned features, potentially resulting in $250K annual lost revenue due to missed market opportunities. Implementing Azure DevOps Boards and formal approval workflows is projected to reduce planning cycle times by 40% and improve stakeholder alignment, decreasing project rework incidents by 25%.",
+        "effort": "High",
+        "azure_service": "",
+        "source": "Formalize software ideation and planning",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Operational Excellence",
+        "title": "Improve Enhance software development and quality assurance",
+        "reasoning": "The current software development and quality assurance process lacks automated testing and deployment pipelines, resulting in manual, error-prone releases and inconsistent quality checks. This gap means that code changes are not systematically validated before reaching production, increasing the risk of defects and operational incidents. The absence of integrated quality gates and feedback loops also hinders rapid, reliable delivery of new features.",
+        "recommendation": "Implement Azure DevOps Pipelines to automate build, test, and deployment workflows, ensuring every code change is validated through continuous integration and continuous deployment (CI/CD). Integrate Azure Test Plans for automated unit, integration, and load testing, and enforce quality gates using Azure DevOps policies (e.g., mandatory code reviews and test pass criteria). Set up Application Insights for real-time monitoring and feedback on release health. Reference: [Azure DevOps CI/CD documentation](https://learn.microsoft.com/en-us/azure/devops/pipelines/?view=azure-devops).",
+        "details": "Implement Azure DevOps Pipelines to automate build, test, and deployment workflows, ensuring every code change is validated through continuous integration and continuous deployment (CI/CD). Integrate Azure Test Plans for automated unit, integration, and load testing, and enforce quality gates using Azure DevOps policies (e.g., mandatory code reviews and test pass criteria). Set up Application Insights for real-time monitoring and feedback on release health. Reference: [Azure DevOps CI/CD documentation](https://learn.microsoft.com/en-us/azure/devops/pipelines/?view=azure-devops).",
+        "priority": "High",
+        "impact": "Manual releases and inconsistent quality checks increase deployment-related incidents by 35% and prolong mean time to recovery (MTTR) to over 4 hours per incident, risking up to $50,000 in downtime costs annually. Automating CI/CD pipelines and enforcing quality gates is projected to reduce incident frequency by 60% and cut MTTR to under 1 hour, saving approximately $30,000 in operational expenses each year.",
+        "business_impact": "Manual releases and inconsistent quality checks increase deployment-related incidents by 35% and prolong mean time to recovery (MTTR) to over 4 hours per incident, risking up to $50,000 in downtime costs annually. Automating CI/CD pipelines and enforcing quality gates is projected to reduce incident frequency by 60% and cut MTTR to under 1 hour, saving approximately $30,000 in operational expenses each year.",
+        "effort": "High",
+        "azure_service": "",
+        "source": "Enhance software development and quality assurance",
+        "points_recoverable": null
+      }
+    ],
+    "confidence": "High",
+    "score_source": "rescored_bottom_up",
+    "coverage_pct": 90.0,
+    "negative_mentions": 1,
+    "domain_scores_raw": null,
+    "scoring_explanation": {
+      "evidence_score": 100,
+      "pre_elevation_score": 100,
+      "final_score": 100,
+      "elevation_uplift": 0,
+      "scale_factor_initial": null,
+      "scale_factor_final": null,
+      "subcategories_sum_before": 100,
+      "subcategories_sum_final": 100,
+      "score_source": "rescored_bottom_up"
+    },
+    "subcategory_details": null,
+    "gap_based_recommendations": [],
+    "normalization_applied": false,
+    "raw_subcategory_sum": 100,
+    "simple_explanation": {
+      "summary": "Operational Excellence rescored at 100/100 using transparent bottom-up scoring (High confidence).",
+      "drivers": [
+        "@{factor=coverage; impact=90.0%}",
+        "@{factor=gaps; impact=1 gap(s)}",
+        "@{factor=normalization; impact=not applied}",
+        "@{factor=provenance; impact=bottom-up scoring}"
+      ],
+      "coverage_band": "comprehensive",
+      "gaps_assessment": "some gaps noted",
+      "focus_areas": [
+        "Formalize operational tasks",
+        "Formalize software ideation and planning",
+        "Enhance software development and quality assurance"
+      ],
+      "confidence": "High",
+      "score_source": "rescored_bottom_up",
+      "metrics": {
+        "score": 100,
+        "coverage_pct": 90.0,
+        "negative_mentions": 1
+      }
+    },
+    "scoring_breakdown": {
+      "pillar": "operational",
+      "name": "Operational Excellence",
+      "concepts": {
+        "critical": "@{found=System.Object[]; missing=System.Object[]}",
+        "important": "@{found=System.Object[]; missing=System.Object[]}",
+        "nice_to_have": "@{found=System.Object[]; missing=System.Object[]}"
+      },
+      "weights": {
+        "monitoring": 16.67,
+        "logging": 16.67,
+        "deployment": 16.67,
+        "ci/cd": 7.5,
+        "pipeline": 7.5,
+        "automation": 7.5,
+        "alerting": 7.5,
+        "infrastructure as code": 6.67,
+        "gitops": 6.67,
+        "observability": 6.67
+      },
+      "steps": [
+        "@{step=initial_scaling; raw_score=93.33; density_multiplier=1; depth_factor=1.15; after=107; reason=Apply density & depth multipliers}",
+        "@{step=minor_gaps_penalty; before=107; after=105; negative_mentions=1; penalty_fraction=0.015; reason=Minor gaps present}",
+        "@{step=gating_clamp; before=105; after=100; gate=100; reason=Maturity gating clamp}"
+      ],
+      "raw_components": {
+        "critical_score": 50.0,
+        "important_score": 30.0,
+        "nice_score": 13.33
+      },
+      "final": {
+        "overall_score": 100,
+        "confidence": "High",
+        "score_source": "evidence",
+        "coverage_pct": 90.0,
+        "negative_mentions": 1,
+        "concepts_found": 9,
+        "total_concepts": 10
+      }
+    }
+  },
+  {
+    "pillar": "Performance Efficiency",
+    "overall_score": 62,
+    "subcategories": {
+      "Performance Targets & SLIs/SLOs": 6,
+      "Capacity & Demand Planning": 5,
+      "Service & Architecture Selection": 13,
+      "Data Collection & Telemetry": 5,
+      "Scaling & Partitioning Strategy": 5,
+      "Performance Testing & Benchmarking": 5,
+      "Code & Runtime Optimization": 3,
+      "Data Usage Optimization": 5,
+      "Critical Flow Optimization": 3,
+      "Operational Load Efficiency": 4,
+      "Live Issue Triage & Remediation": 4,
+      "Continuous Optimization & Feedback Loop": 4
+    },
+    "recommendations": [
+      {
+        "pillar": "Performance Efficiency",
+        "title": "Establish End-to-End Latency Root Cause Analysis",
+        "reasoning": "Conduct diagnostic tracing to isolate latency sources across microservices and third-party integrations. High-severity latency support cases demand systematic root cause investigation beyond infrastructure metrics.",
+        "recommendation": "Conduct diagnostic tracing to isolate latency sources across microservices and third-party integrations. High-severity latency support cases demand systematic root cause investigation beyond infrastructure metrics.",
+        "details": "Conduct diagnostic tracing to isolate latency sources across microservices and third-party integrations. High-severity latency support cases demand systematic root cause investigation beyond infrastructure metrics.",
+        "priority": "Critical",
+        "impact": "Unresolved latency root causes can increase mean time to resolution (MTTR) for critical incidents by over 40%, leading to potential SLA penalties exceeding $25,000 annually. Implementing end-to-end diagnostic tracing is projected to reduce latency-related incident frequency by 60% and improve overall transaction throughput by up to 25%.",
+        "business_impact": "Unresolved latency root causes can increase mean time to resolution (MTTR) for critical incidents by over 40%, leading to potential SLA penalties exceeding $25,000 annually. Implementing end-to-end diagnostic tracing is projected to reduce latency-related incident frequency by 60% and improve overall transaction throughput by up to 25%.",
+        "effort": "Medium",
+        "azure_service": "Azure Front Door",
+        "source": "General Assessment",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Performance Efficiency",
+        "title": "Prioritize Hot Path Profiling and Code Runtime Optimization",
+        "reasoning": "Regularly profile APIs and critical user flows to identify blocking synchronous calls, inefficient serialization, or excessive retries. Code-level optimization is under-addressed, contributing to recurring latency and operational incidents.",
+        "recommendation": "Regularly profile APIs and critical user flows to identify blocking synchronous calls, inefficient serialization, or excessive retries. Code-level optimization is under-addressed, contributing to recurring latency and operational incidents.",
+        "details": "Regularly profile APIs and critical user flows to identify blocking synchronous calls, inefficient serialization, or excessive retries. Code-level optimization is under-addressed, contributing to recurring latency and operational incidents.",
+        "priority": "Critical",
+        "impact": "API latency will remain above 800ms, increasing operational incident frequency by 30% and driving up support costs by $15,000 annually. Targeted hot path profiling and code optimization are projected to reduce average response times by 40% and cut incident-related MTTR from 2 hours to under 45 minutes.",
+        "business_impact": "API latency will remain above 800ms, increasing operational incident frequency by 30% and driving up support costs by $15,000 annually. Targeted hot path profiling and code optimization are projected to reduce average response times by 40% and cut incident-related MTTR from 2 hours to under 45 minutes.",
+        "effort": "Medium",
+        "azure_service": "Azure Front Door",
+        "source": "Code & Runtime Optimization",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Performance Efficiency",
+        "title": "Formalize Critical Flow Performance Targets and Budgets",
+        "reasoning": "Define, instrument, and monitor performance indicators for the top 3 business flows (checkout, login, product search) with budgeted latency and error rates. Ensure SLIs and SLOs are actionable and trackable.",
+        "recommendation": "Define, instrument, and monitor performance indicators for the top 3 business flows (checkout, login, product search) with budgeted latency and error rates. Ensure SLIs and SLOs are actionable and trackable.",
+        "details": "Define, instrument, and monitor performance indicators for the top 3 business flows (checkout, login, product search) with budgeted latency and error rates. Ensure SLIs and SLOs are actionable and trackable.",
+        "priority": "High",
+        "impact": "Unmonitored latency and error rates in critical flows can increase checkout abandonment by up to 15%, resulting in an estimated $250,000 annual revenue loss and a 20% rise in support incidents. Implementing actionable SLIs and SLOs is projected to reduce MTTR by 40% and decrease error-related downtime by 30 hours per quarter.",
+        "business_impact": "Unmonitored latency and error rates in critical flows can increase checkout abandonment by up to 15%, resulting in an estimated $250,000 annual revenue loss and a 20% rise in support incidents. Implementing actionable SLIs and SLOs is projected to reduce MTTR by 40% and decrease error-related downtime by 30 hours per quarter.",
+        "effort": "Medium",
+        "azure_service": "Azure Front Door",
+        "source": "Performance Targets & SLIs/SLOs",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Performance Efficiency",
+        "title": "Advance Performance Test Coverage: Load, Stress, Spike, and Soak",
+        "reasoning": "Expand beyond standard load tests to include spike and soak testing of mission-critical business flows. Document baselines and regression patterns to optimize capacity planning and incident response.",
+        "recommendation": "Expand beyond standard load tests to include spike and soak testing of mission-critical business flows. Document baselines and regression patterns to optimize capacity planning and incident response.",
+        "details": "Expand beyond standard load tests to include spike and soak testing of mission-critical business flows. Document baselines and regression patterns to optimize capacity planning and incident response.",
+        "priority": "Medium",
+        "impact": "Failure to implement comprehensive spike and soak testing may result in a 30% increase in critical incident frequency and a 20% rise in MTTR during peak business periods. Expanding test coverage and documenting baselines is projected to reduce incident count by 40% and improve capacity utilization by 25%, directly lowering operational risk and unplanned downtime costs.",
+        "business_impact": "Failure to implement comprehensive spike and soak testing may result in a 30% increase in critical incident frequency and a 20% rise in MTTR during peak business periods. Expanding test coverage and documenting baselines is projected to reduce incident count by 40% and improve capacity utilization by 25%, directly lowering operational risk and unplanned downtime costs.",
+        "effort": "Medium",
+        "azure_service": "Azure Front Door",
+        "source": "Performance Targets & SLIs/SLOs",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Performance Efficiency",
+        "title": "Implement Automated Performance Regression Detection in CI/CD",
+        "reasoning": "Integrate performance budgets and regression alerts into PR and deployment pipelines, actively preventing code-level and configuration-induced performance degradation.",
+        "recommendation": "Integrate performance budgets and regression alerts into PR and deployment pipelines, actively preventing code-level and configuration-induced performance degradation.",
+        "details": "Integrate performance budgets and regression alerts into PR and deployment pipelines, actively preventing code-level and configuration-induced performance degradation.",
+        "priority": "Low",
+        "impact": "Failure to detect performance regressions in CI/CD pipelines can increase production incident rates by up to 30% and extend mean time to resolution (MTTR) by 2 hours per incident, resulting in higher operational costs and customer dissatisfaction. Automated regression detection and performance budgets in pipelines can reduce performance-related incidents by 40% and decrease MTTR by 50%, improving user experience and lowering support costs.",
+        "business_impact": "Failure to detect performance regressions in CI/CD pipelines can increase production incident rates by up to 30% and extend mean time to resolution (MTTR) by 2 hours per incident, resulting in higher operational costs and customer dissatisfaction. Automated regression detection and performance budgets in pipelines can reduce performance-related incidents by 40% and decrease MTTR by 50%, improving user experience and lowering support costs.",
+        "effort": "Medium",
+        "azure_service": "Azure Front Door",
+        "source": "Performance Targets & SLIs/SLOs",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Performance Efficiency",
+        "title": "Enhance Database Query Optimization and Index Strategy",
+        "reasoning": "Periodic evaluation of Cosmos DB and SQL indexes, query plans, and caches to reduce query time variance and improve worst-case response times. Proactive database optimization can mitigate user-facing latency.",
+        "recommendation": "Periodic evaluation of Cosmos DB and SQL indexes, query plans, and caches to reduce query time variance and improve worst-case response times. Proactive database optimization can mitigate user-facing latency.",
+        "details": "Periodic evaluation of Cosmos DB and SQL indexes, query plans, and caches to reduce query time variance and improve worst-case response times. Proactive database optimization can mitigate user-facing latency.",
+        "priority": "Low",
+        "impact": "If periodic database optimization is not performed, user-facing query latency may increase by up to 40%, potentially leading to a 15% rise in support incidents related to slow application performance. Implementing regular index and query plan reviews is expected to reduce worst-case query response times by 30% and decrease latency-driven incident rates by 10%, improving overall user satisfaction and operational efficiency.",
+        "business_impact": "If periodic database optimization is not performed, user-facing query latency may increase by up to 40%, potentially leading to a 15% rise in support incidents related to slow application performance. Implementing regular index and query plan reviews is expected to reduce worst-case query response times by 30% and decrease latency-driven incident rates by 10%, improving overall user satisfaction and operational efficiency.",
+        "effort": "Medium",
+        "azure_service": "Azure Front Door",
+        "source": "Scaling & Partitioning Strategy",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Performance Efficiency",
+        "title": "Refine Autoscale Policies with Real User Load Analysis",
+        "reasoning": "Validate and tune autoscale rules for AKS, App Service, and Function apps based on real-world traffic patterns and historical peak differentials. Adjust scale triggers to minimize risk of under-provisioning during surges.",
+        "recommendation": "Validate and tune autoscale rules for AKS, App Service, and Function apps based on real-world traffic patterns and historical peak differentials. Adjust scale triggers to minimize risk of under-provisioning during surges.",
+        "details": "Validate and tune autoscale rules for AKS, App Service, and Function apps based on real-world traffic patterns and historical peak differentials. Adjust scale triggers to minimize risk of under-provisioning during surges.",
+        "priority": "Low",
+        "impact": "Failure to refine autoscale policies may result in a 30% increase in service downtime during peak traffic periods, leading to potential revenue losses of up to $15,000 per incident. Optimizing autoscale triggers based on real user load analysis can reduce latency by 40% and decrease incident response time by 50%, improving overall customer satisfaction and system reliability.",
+        "business_impact": "Failure to refine autoscale policies may result in a 30% increase in service downtime during peak traffic periods, leading to potential revenue losses of up to $15,000 per incident. Optimizing autoscale triggers based on real user load analysis can reduce latency by 40% and decrease incident response time by 50%, improving overall customer satisfaction and system reliability.",
+        "effort": "Medium",
+        "azure_service": "Azure Front Door",
+        "source": "Operational Load Efficiency",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Performance Efficiency",
+        "title": "Establish Structured Performance Incident Response Playbooks",
+        "reasoning": "Create runbooks and escalation protocols for rapid triage of performance degradation or outages, informed by patterns observed in support cases. Improve incident detection-to-remediation cycle time.",
+        "recommendation": "Create runbooks and escalation protocols for rapid triage of performance degradation or outages, informed by patterns observed in support cases. Improve incident detection-to-remediation cycle time.",
+        "details": "Create runbooks and escalation protocols for rapid triage of performance degradation or outages, informed by patterns observed in support cases. Improve incident detection-to-remediation cycle time.",
+        "priority": "Low",
+        "impact": "Without structured performance incident response playbooks, average mean time to resolution (MTTR) for critical outages may exceed 6 hours, increasing downtime-related losses by over $25,000 per incident. Implementing runbooks and escalation protocols can reduce MTTR by 40% and lower incident recurrence by 30%, directly improving service availability and minimizing financial risk.",
+        "business_impact": "Without structured performance incident response playbooks, average mean time to resolution (MTTR) for critical outages may exceed 6 hours, increasing downtime-related losses by over $25,000 per incident. Implementing runbooks and escalation protocols can reduce MTTR by 40% and lower incident recurrence by 30%, directly improving service availability and minimizing financial risk.",
+        "effort": "Medium",
+        "azure_service": "Azure Front Door",
+        "source": "Performance Targets & SLIs/SLOs",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Performance Efficiency",
+        "title": "Automate Capacity and Demand Forecast Model Updates",
+        "reasoning": "Develop automated, data-driven forecasts that periodically reassess demand, trend, and seasonality. Use predictive analytics to refine scale-out and resource reservation policies.",
+        "recommendation": "Develop automated, data-driven forecasts that periodically reassess demand, trend, and seasonality. Use predictive analytics to refine scale-out and resource reservation policies.",
+        "details": "Develop automated, data-driven forecasts that periodically reassess demand, trend, and seasonality. Use predictive analytics to refine scale-out and resource reservation policies.",
+        "priority": "Low",
+        "impact": "Manual and outdated capacity forecasting increases the risk of resource overallocation by up to 30%, driving unnecessary cloud spend and prolonging incident resolution times by an average of 2 hours per event. Automated, predictive model updates reduce forecast errors by 60% and optimize resource utilization, lowering infrastructure costs by $25,000 annually.",
+        "business_impact": "Manual and outdated capacity forecasting increases the risk of resource overallocation by up to 30%, driving unnecessary cloud spend and prolonging incident resolution times by an average of 2 hours per event. Automated, predictive model updates reduce forecast errors by 60% and optimize resource utilization, lowering infrastructure costs by $25,000 annually.",
+        "effort": "Medium",
+        "azure_service": "Azure Front Door",
+        "source": "Capacity & Demand Planning",
+        "points_recoverable": null
+      },
+      {
+        "pillar": "Performance Efficiency",
+        "title": "Strengthen Continuous Feedback Loops for Performance Optimization",
+        "reasoning": "Establish a regular cadence for postmortem analysis, review of telemetry anomalies, and performance tuning incorporating business and engineering feedback.",
+        "recommendation": "Establish a regular cadence for postmortem analysis, review of telemetry anomalies, and performance tuning incorporating business and engineering feedback.",
+        "details": "Establish a regular cadence for postmortem analysis, review of telemetry anomalies, and performance tuning incorporating business and engineering feedback.",
+        "priority": "Low",
+        "impact": "Failure to implement continuous feedback loops may result in a 30% increase in performance-related incidents and extend mean time to resolution (MTTR) by up to 2 hours per event. Establishing regular postmortem and telemetry reviews is projected to reduce incident frequency by 25% and improve system throughput by 15%, directly enhancing user experience and operational efficiency.",
+        "business_impact": "Failure to implement continuous feedback loops may result in a 30% increase in performance-related incidents and extend mean time to resolution (MTTR) by up to 2 hours per event. Establishing regular postmortem and telemetry reviews is projected to reduce incident frequency by 25% and improve system throughput by 15%, directly enhancing user experience and operational efficiency.",
+        "effort": "Medium",
+        "azure_service": "Azure Front Door",
+        "source": "Continuous Optimization & Feedback Loop",
+        "points_recoverable": null
+      }
+    ],
+    "confidence": "High",
+    "score_source": "rescored_bottom_up",
+    "coverage_pct": 80.0,
+    "negative_mentions": 1,
+    "domain_scores_raw": null,
+    "scoring_explanation": {
+      "evidence_score": 75,
+      "pre_elevation_score": 75,
+      "final_score": 62,
+      "elevation_uplift": 0,
+      "scale_factor_initial": null,
+      "scale_factor_final": null,
+      "subcategories_sum_before": 62,
+      "subcategories_sum_final": 62,
+      "score_source": "rescored_bottom_up"
+    },
+    "subcategory_details": null,
+    "gap_based_recommendations": [],
+    "normalization_applied": false,
+    "raw_subcategory_sum": 62,
+    "simple_explanation": {
+      "summary": "Performance Efficiency rescored at 62/100 using transparent bottom-up scoring (High confidence).",
+      "drivers": [
+        "@{factor=coverage; impact=80.0%}",
+        "@{factor=gaps; impact=1 gap(s)}",
+        "@{factor=normalization; impact=not applied}",
+        "@{factor=provenance; impact=bottom-up scoring}"
+      ],
+      "coverage_band": "comprehensive",
+      "gaps_assessment": "some gaps noted",
+      "focus_areas": [
+        "Code & Runtime Optimization",
+        "Critical Flow Optimization",
+        "Operational Load Efficiency"
+      ],
+      "confidence": "High",
+      "score_source": "rescored_bottom_up",
+      "metrics": {
+        "score": 62,
+        "coverage_pct": 80.0,
+        "negative_mentions": 1
+      }
+    },
+    "scoring_breakdown": {
+      "pillar": "performance",
+      "name": "Performance Efficiency",
+      "concepts": {
+        "critical": "@{found=System.Object[]; missing=System.Object[]}",
+        "important": "@{found=System.Object[]; missing=System.Object[]}",
+        "nice_to_have": "@{found=System.Object[]; missing=System.Object[]}"
+      },
+      "weights": {
+        "latency": 16.67,
+        "throughput": 16.67,
+        "scalability": 16.67,
+        "cache": 7.5,
+        "cdn": 7.5,
+        "load balancing": 7.5,
+        "indexing": 7.5,
+        "compression": 6.67,
+        "optimization": 6.67,
+        "query tuning": 6.67
+      },
+      "steps": [
+        "@{step=initial_scaling; raw_score=76.67; density_multiplier=1; depth_factor=1.05; after=80; reason=Apply density & depth multipliers}",
+        "@{step=minor_gaps_penalty; before=80; after=78; negative_mentions=1; penalty_fraction=0.015; reason=Minor gaps present}",
+        "@{step=missing_critical_deduction; before=78; after=75; missing_critical=1; reason=Subtract points for missing critical concepts}"
+      ],
+      "raw_components": {
+        "critical_score": 33.33,
+        "important_score": 30.0,
+        "nice_score": 13.33
+      },
+      "final": {
+        "overall_score": 75,
+        "confidence": "High",
+        "score_source": "evidence",
+        "coverage_pct": 80.0,
+        "negative_mentions": 1,
+        "concepts_found": 8,
+        "total_concepts": 10
+      }
+    }
+  }
+]

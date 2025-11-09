@@ -1,0 +1,254 @@
+{
+  "pillar": "security",
+  "version": "1.0",
+  "scale": {
+    "0": "Not implemented",
+    "1": "Ad hoc",
+    "2": "In progress",
+    "3": "Consistent",
+    "4": "Managed",
+    "5": "Optimized"
+  },
+  "practices": [
+    {
+      "code": "SE01",
+      "title": "Establish a Security Baseline",
+      "weight": 0.09,
+      "signals": [
+        "security baseline",
+        "mcsb",
+        "cis control",
+        "policy initiative"
+      ],
+      "category": "Strategy"
+    },
+    {
+      "code": "SE02",
+      "title": "Maintain a Secure Development Lifecycle",
+      "weight": 0.09,
+      "signals": [
+        "secure development lifecycle",
+        "threat model",
+        "sdlc",
+        "sast",
+        "dast",
+        "software supply chain"
+      ],
+      "category": "Development"
+    },
+    {
+      "code": "SE03",
+      "title": "Classify and Label Data Sensitivity",
+      "weight": 0.08,
+      "signals": [
+        "data classification",
+        "sensitivity label",
+        "information protection",
+        "purview"
+      ],
+      "category": "Data Protection"
+    },
+    {
+      "code": "SE04",
+      "title": "Create Intentional Segmentation and Perimeters",
+      "weight": 0.09,
+      "signals": [
+        "segmentation",
+        "landing zone",
+        "hub and spoke",
+        "micro segmentation",
+        "isolation"
+      ],
+      "category": "Architecture"
+    },
+    {
+      "code": "SE05",
+      "title": "Implement Conditional Identity and Access Management",
+      "weight": 0.1,
+      "signals": [
+        "conditional access",
+        "least privilege",
+        "mfa",
+        "privileged identity management",
+        "pim",
+        "just in time access"
+      ],
+      "category": "Identity"
+    },
+    {
+      "code": "SE06",
+      "title": "Isolate, Filter, and Control Network Traffic",
+      "weight": 0.1,
+      "signals": [
+        "network security group",
+        "azure firewall",
+        "private endpoint",
+        "ddos protection",
+        "web application firewall",
+        "egress control"
+      ],
+      "category": "Network"
+    },
+    {
+      "code": "SE07",
+      "title": "Encrypt Data with Modern Methods",
+      "weight": 0.08,
+      "signals": [
+        "encryption at rest",
+        "customer managed key",
+        "https",
+        "tls 1.2",
+        "double encryption"
+      ],
+      "category": "Data Protection"
+    },
+    {
+      "code": "SE08",
+      "title": "Harden Workload Components",
+      "weight": 0.08,
+      "signals": [
+        "baseline image",
+        "patching",
+        "defender for cloud",
+        "secure configuration",
+        "cis benchmark"
+      ],
+      "category": "Platform"
+    },
+    {
+      "code": "SE09",
+      "title": "Protect Application Secrets",
+      "weight": 0.07,
+      "signals": [
+        "key vault",
+        "secret rotation",
+        "managed identity",
+        "secret scanning"
+      ],
+      "category": "Identity"
+    },
+    {
+      "code": "SE10",
+      "title": "Implement Holistic Threat Detection and Monitoring",
+      "weight": 0.07,
+      "signals": [
+        "sentinel",
+        "azure monitor",
+        "security information and event management",
+        "siem",
+        "xdr",
+        "log analytics"
+      ],
+      "category": "Operations"
+    },
+    {
+      "code": "SE11",
+      "title": "Establish a Comprehensive Security Testing Regimen",
+      "weight": 0.07,
+      "signals": [
+        "penetration test",
+        "red team",
+        "security testing",
+        "chaos engineering"
+      ],
+      "category": "Assurance"
+    },
+    {
+      "code": "SE12",
+      "title": "Define and Exercise Incident Response Procedures",
+      "weight": 0.08,
+      "signals": [
+        "incident response",
+        "playbook",
+        "tabletop exercise",
+        "post incident review",
+        "service now"
+      ],
+      "category": "Operations"
+    }
+  ],
+  "gaps": [
+    {
+      "id": "se-gap-01",
+      "label": "Missing security baseline",
+      "practice": "SE01",
+      "detail": "Architecture description does not mention alignment to a security baseline or defined policies.",
+      "patterns": [
+        "no security baseline",
+        "lack of policy",
+        "no governance"
+      ],
+      "recommendation_hint_keywords": [
+        "baseline",
+        "policy",
+        "governance"
+      ]
+    },
+    {
+      "id": "se-gap-02",
+      "label": "No conditional access or MFA",
+      "practice": "SE05",
+      "detail": "Identity controls do not mention MFA or conditional access enforcement.",
+      "patterns": [
+        "no mfa",
+        "password only",
+        "local account",
+        "shared credential"
+      ],
+      "recommendation_hint_keywords": [
+        "mfa",
+        "conditional access",
+        "identity"
+      ]
+    },
+    {
+      "id": "se-gap-03",
+      "label": "Public endpoints without protection",
+      "practice": "SE06",
+      "detail": "Public-facing services described without WAF, firewall, or egress restrictions.",
+      "patterns": [
+        "public endpoint",
+        "open internet",
+        "no firewall",
+        "no nsg"
+      ],
+      "recommendation_hint_keywords": [
+        "network",
+        "waf",
+        "firewall"
+      ]
+    },
+    {
+      "id": "se-gap-04",
+      "label": "Secrets stored in configuration",
+      "practice": "SE09",
+      "detail": "Credentials or secrets stored in application configuration or code.",
+      "patterns": [
+        "stored in app settings",
+        "plaintext password",
+        "hardcoded secret"
+      ],
+      "recommendation_hint_keywords": [
+        "key vault",
+        "secret",
+        "rotation"
+      ]
+    },
+    {
+      "id": "se-gap-05",
+      "label": "Monitoring gaps",
+      "practice": "SE10",
+      "detail": "Architecture lacks centralized monitoring, alerting, or threat detection tooling.",
+      "patterns": [
+        "no monitoring",
+        "no alert",
+        "logs not centralized"
+      ],
+      "recommendation_hint_keywords": [
+        "monitoring",
+        "sentinel",
+        "siem"
+      ]
+    }
+  ]
+}

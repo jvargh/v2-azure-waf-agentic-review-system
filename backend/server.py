@@ -1,0 +1,3456 @@
+"""FastAPI backend for Azure Well-Architected Review assessments.
+
+Implements in-memory storage and concurrent orchestration of 5 pillar agents.
+If real agent framework dependencies are unavailable, falls back to emulated mode
+that produces deterministic stub scores and recommendations.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import csv
+import datetime as dt
+import io
+import os
+import traceback
+from pathlib import Path
+from typing import Dict, List, Optional, Any, TYPE_CHECKING
+from backend.utils.concepts import load_expected_concepts
+
+from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
+try:  # Runtime import; may not be installed in dev environment
+    from motor.motor_asyncio import AsyncIOMotorClient  # type: ignore
+except ImportError:  # pragma: no cover - motor not installed fallback
+    AsyncIOMotorClient = None  # type: ignore
+
+try:
+    from openai import AsyncAzureOpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+# Import analysis modules with resilient fallback to support multiple execution contexts.
+# Primary expectation: running inside package path `backend.app.analysis`.
+# Fallback: environments that place `src` on PYTHONPATH (legacy layout) or direct relative import.
+try:
+    from backend.app.analysis import DocumentAnalyzer, AssessmentOrchestrator  # type: ignore
+except ModuleNotFoundError:
+    try:
+        from src.app.analysis import DocumentAnalyzer, AssessmentOrchestrator  # type: ignore
+        print("[import] Fallback to src.app.analysis")
+    except ModuleNotFoundError as e:
+        raise ModuleNotFoundError(
+            f"Unable to import analysis modules from expected locations: backend.app.analysis or src.app.analysis. Original error: {e}" )
+
+if TYPE_CHECKING:  # For type hints only
+    from motor.motor_asyncio import AsyncIOMotorDatabase
+
+ASSESSMENTS: Dict[str, Dict] = {}  # in-memory fallback if Mongo unavailable
+DOC_COUNTER = 0
+mongo_db: Any = None  # Use loose typing to avoid Pylance errors if motor missing
+
+PROJECT_ROOT = Path(__file__).parent.parent
+DATA_DIR = PROJECT_ROOT / "results"
+DATA_DIR.mkdir(exist_ok=True)
+
+# Initialize Azure OpenAI client if available
+openai_client = None
+if OPENAI_AVAILABLE:
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+    azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
+    azure_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+    
+    if azure_endpoint and azure_api_key:
+        openai_client = AsyncAzureOpenAI(
+            azure_endpoint=azure_endpoint,
+            api_key=azure_api_key,
+            api_version=azure_api_version
+        )
+        print(f"[INIT] Azure OpenAI client initialized with endpoint: {azure_endpoint}")
+    else:
+        print(f"[INIT] Azure OpenAI credentials not found - using static templates")
+else:
+    print(f"[INIT] AsyncAzureOpenAI not available - using static templates")
+
+PILLARS = [
+    ("reliability", "Reliability"),
+    ("security", "Security"),
+    ("cost", "Cost Optimization"),
+    ("operational", "Operational Excellence"),
+    ("performance", "Performance Efficiency"),
+]
+
+# Max bullets/cases included in support_cases_summary (overridden by env)
+CASE_SUMMARY_MAX_CASES = 25
+try:
+    CASE_SUMMARY_MAX_CASES = int(os.getenv("CASE_SUMMARY_MAX_CASES", CASE_SUMMARY_MAX_CASES))
+except Exception:
+    CASE_SUMMARY_MAX_CASES = 25
+print(f"[INIT] CASE_SUMMARY_MAX_CASES={CASE_SUMMARY_MAX_CASES}")
+
+# Floor applied to subcategory scores when no evidence (no concepts found)
+NO_EVIDENCE_SUBCATEGORY_FLOOR = 2
+try:
+    NO_EVIDENCE_SUBCATEGORY_FLOOR = int(os.getenv("NO_EVIDENCE_SUBCATEGORY_FLOOR", NO_EVIDENCE_SUBCATEGORY_FLOOR))
+except Exception:
+    NO_EVIDENCE_SUBCATEGORY_FLOOR = 2
+print(f"[INIT] NO_EVIDENCE_SUBCATEGORY_FLOOR={NO_EVIDENCE_SUBCATEGORY_FLOOR}")
+
+# Toggle: use curated expected concept catalogs (if available) for pillars
+USE_CURATED_EXPECTED_CONCEPTS = True
+try:
+    raw_toggle = os.getenv("USE_CURATED_EXPECTED_CONCEPTS", str(USE_CURATED_EXPECTED_CONCEPTS))
+    USE_CURATED_EXPECTED_CONCEPTS = raw_toggle.lower() in ("1","true","yes","on")
+except Exception:
+    USE_CURATED_EXPECTED_CONCEPTS = True
+print(f"[INIT] USE_CURATED_EXPECTED_CONCEPTS={USE_CURATED_EXPECTED_CONCEPTS}")
+
+
+class Document(BaseModel):
+    id: str
+    filename: str
+    content_type: str
+    size: int
+    category: str
+    uploaded_at: str
+    raw_text: Optional[str] = None
+    llm_analysis: Optional[str] = None  # DEPRECATED: will be removed after frontend migrates to explicit enrichment fields; prefer diagram_summary, support_cases_summary, raw_extracted_text + analysis_metadata.structured_report
+    analysis_metadata: Optional[Dict[str, Any]] = None
+    # --- Enrichment Fields (new) ---
+    # raw_extracted_text: For diagrams (SVG text nodes, heuristic tokens) or other raw extraction sources.
+    raw_extracted_text: Optional[str] = None
+    # diagram_summary: Concise bullet list or vision/LLM summary of architecture diagram (<=12 bullets heuristic fallback).
+    diagram_summary: Optional[str] = None
+    # support_cases_summary: Aggregated thematic/risk bullet list for support case CSVs (truncated by CASE_SUMMARY_MAX_CASES).
+    support_cases_summary: Optional[str] = None
+    # strategy: Comma-separated list capturing extraction strategies used for diagrams (e.g., svg_text_nodes, filename_tokens, llm_provider_vision).
+    strategy: Optional[str] = None
+    # total_cases: Count of parsed support cases from CSV.
+    total_cases: Optional[int] = None
+    # risk_signals: Structured list of detected risk signals from support cases.
+    risk_signals: Optional[List[Any]] = None
+    # thematic_patterns: Structured list/dict of classified themes from support cases.
+    thematic_patterns: Optional[Any] = None  # Allow flexible shape (list or dict) to avoid early schema lock-in
+    # structured_report: Flattened for frontend convenience (duplicates analysis_metadata.structured_report)
+    structured_report: Optional[Dict[str, Any]] = None
+    
+    def model_dump(self, **kwargs):
+        """Override to flatten structured_report from analysis_metadata for frontend."""
+        data = super().model_dump(**kwargs)
+        # Flatten structured_report if it exists in analysis_metadata
+        if data.get('analysis_metadata') and 'structured_report' in data['analysis_metadata']:
+            data['structured_report'] = data['analysis_metadata']['structured_report']
+        return data
+
+
+class Recommendation(BaseModel):
+    pillar: str
+    title: str
+    reasoning: str  # LLM generated description (why/what)
+    recommendation: Optional[str] = None  # LLM generated recommended action (how to fix)
+    details: str  # Backward compatibility / alias for recommendation
+    priority: str
+    impact: str
+    business_impact: Optional[str] = None  # Explicit enriched business impact (metric-driven); impact kept for backward compatibility
+    effort: str
+    azure_service: str
+    source: str = ""  # Subcategory or origin of this recommendation
+
+# Canonical mapping: Agent constant titles → Well-Architected Framework canonical subcategory names
+# This ensures consistent source attribution and URL mapping in the UI
+AGENT_TO_CANONICAL_SUBCATEGORY_MAP = {
+    # Operational Excellence (OE)
+    "Design and implement monitoring system": "Expand Observability and Operational Monitoring",
+    "Design and implement automation upfront": "Automate repetitive tasks",
+    "Define safe deployment practices": "Build workload supply chain with pipelines",
+    
+    # Cost Optimization (CO)
+    "Cost Data Collection": "Collect and review cost data",
+    "Cost Data Collection and Incident Postmortems": "Collect and review cost data",
+    
+    # Performance Efficiency (PE)
+    "Define performance targets": "Performance Targets & SLIs/SLOs",
+    "Conduct capacity planning": "Capacity & Demand Planning",
+    "Select the right services": "Service & Architecture Selection",
+    "Collect performance data": "Data Collection & Telemetry",
+    "Optimize scaling and partitioning": "Implement Proactive Scaling and Partitioning Strategy",
+    "Scaling & Partitioning Strategy": "Implement Proactive Scaling and Partitioning Strategy",
+    "Scaling and Partitioning": "Implement Proactive Scaling and Partitioning Strategy",
+    "Test performance": "Performance Testing & Benchmarking",
+    "Optimize code and infrastructure": "Code & Runtime Optimization",
+    "Optimize data usage": "Data Usage Optimization",
+    "Prioritize the performance of critical flows": "Critical Flow Optimization",
+    "Optimize operational tasks": "Operational Load Efficiency",
+    "Respond to live performance issues": "Live Issue Triage & Remediation",
+    "Continuously optimize performance": "Continuous Optimization & Feedback Loop",
+    
+    # Security (SE) - Most already match, add variations
+    "Threat Detection": "Implement Holistic Threat Detection and Monitoring",
+    "Security Testing": "Establish a Comprehensive Security Testing Regimen",
+    
+    # Reliability (RE)
+    "Disaster Plans": "Implement Structured, Tested, and Documented BCDR Plans",
+    "BCDR": "Implement Structured, Tested, and Documented BCDR Plans",
+}
+
+def _normalize_subcategory_source(source: str, pillar: str, available_subcats: Dict[str, int]) -> str:
+    """
+    Normalize agent-generated subcategory names to canonical Well-Architected names.
+    
+    Args:
+        source: Raw source string from LLM or generated recommendations
+        pillar: Pillar name for context-specific mapping
+        available_subcats: Dictionary of available subcategories for fallback matching
+    
+    Returns:
+        Canonical subcategory name suitable for UI display and URL mapping
+    """
+    if not source or source.strip() == "":
+        return f"{pillar} Best Practices"
+    
+    # Direct mapping lookup
+    if source in AGENT_TO_CANONICAL_SUBCATEGORY_MAP:
+        return AGENT_TO_CANONICAL_SUBCATEGORY_MAP[source]
+    
+    # Handle "General Assessment" with pillar context
+    if source == "General Assessment" or "General" in source:
+        # Try to infer from available subcategories (pick lowest scoring)
+        if available_subcats:
+            lowest = min(available_subcats.items(), key=lambda x: x[1])
+            return lowest[0]
+        return f"{pillar} Best Practices"
+    
+    # Token-based fuzzy matching against canonical names
+    import re
+    source_tokens = set(re.findall(r'[A-Za-z]+', source.lower()))
+    best_match = None
+    best_score = 0
+    
+    for agent_name, canonical in AGENT_TO_CANONICAL_SUBCATEGORY_MAP.items():
+        agent_tokens = set(re.findall(r'[A-Za-z]+', agent_name.lower()))
+        overlap = len(source_tokens & agent_tokens)
+        if overlap > best_score and overlap >= 2:
+            best_score = overlap
+            best_match = canonical
+    
+    if best_match:
+        return best_match
+    
+    # Return original if no mapping found
+    return source
+
+class SubcategoryDetail(BaseModel):
+    name: str
+    base_score: int
+    coverage_penalty: int
+    gap_penalty: int
+    final_score: int
+    confidence: str
+    evidence_found: List[str] = Field(default_factory=list)
+    missing_concepts: List[str] = Field(default_factory=list)
+    gaps_detected: List[str] = Field(default_factory=list)
+    normalization_factor: Optional[float] = None
+    prompt_concepts: List[str] = Field(default_factory=list)
+    found_concepts: List[str] = Field(default_factory=list)
+    justification_text: Optional[str] = None
+    # New human-friendly transparency fields
+    human_summary: Optional[str] = None
+    expected_concepts: List[str] = Field(default_factory=list)
+    substantiated: bool = False
+
+
+class PillarResult(BaseModel):
+    pillar: str
+    overall_score: int
+    subcategories: Dict[str, int]
+    recommendations: List[Recommendation]
+    confidence: str = "Low"  # Low|Medium|High - evidence quality indicator
+    score_source: str = "evidence"  # evidence|floor|elevated - provenance of overall_score
+    coverage_pct: float | None = None  # % of concepts detected (for transparency)
+    negative_mentions: int | None = None  # Count of actual gap indicators (context-aware)
+    # Raw domain scores reported by LLM agent before evidence scaling (for transparency)
+    domain_scores_raw: Dict[str, int] | None = None
+    # Detailed scoring explanation & diagnostics
+    scoring_explanation: Dict[str, Any] | None = None  # keys: evidence_score, pre_elevation_score, elevation_uplift, scale_factor_initial, scale_factor_final, subcategories_sum_before, subcategories_sum_final
+    # Lightweight, UI-friendly explanation (stable shape for front-end rendering)
+    # Structure:
+    # {
+    #   "summary": str,                # One sentence human-readable summary
+    #   "drivers": [                   # Key factors that influenced the score
+    #       {"factor": str, "impact": str}
+    #   ],
+    #   "coverage_band": str,          # limited|moderate|strong|comprehensive
+    #   "gaps_assessment": str,        # qualitative gap descriptor
+    #   "focus_areas": [str],          # 0-3 lowest scoring subcategories
+    #   "confidence": str,             # mirrors confidence
+    #   "score_source": str,           # mirrors score_source
+    #   "metrics": {                   # numeric transparency snapshot
+    #       "score": int,
+    #       "coverage_pct": float,
+    #       "negative_mentions": int
+    #   }
+    # }
+    simple_explanation: Dict[str, Any] | None = None
+    # Deep bottom-up breakdown (concept-level justification & adjustment trail)
+    scoring_breakdown: Dict[str, Any] | None = None
+    # Added transparent concept coverage & normalization provenance
+    subcategory_details: Dict[str, SubcategoryDetail] | None = None
+    normalization_applied: bool | None = None
+    raw_subcategory_sum: int | None = None
+    gap_based_recommendations: List[Recommendation] | None = None
+
+
+class Assessment(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    created_at: str
+    status: str = "pending"  # pending|preprocessing|analyzing|aligning|completed|failed
+    progress: int = 0
+    current_phase: Optional[str] = None
+    pillar_statuses: Dict[str, str] = Field(default_factory=dict)  # Per-pillar status tracking
+    pillar_progress: Dict[str, int] = Field(default_factory=dict)  # Per-pillar progress (0-100)
+    documents: List[Document] = Field(default_factory=list)
+    unified_corpus: Optional[str] = None
+    pillar_results: List[PillarResult] = Field(default_factory=list)
+    cross_pillar_conflicts: List[Dict[str, str]] = Field(default_factory=list)
+    cohesive_recommendations: List[Dict[str, Any]] = Field(default_factory=list)
+    overall_architecture_score: Optional[float] = None
+    # History of prior score snapshots for transparency when rescoring
+    score_history: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class QuickAssessmentRequest(BaseModel):
+    """Request body for quick one-shot assessment.
+
+    Provides raw architecture text (and optional support cases CSV content) to run
+    the entire multi-pillar evaluation synchronously in a single API call.
+    This bypasses the create/upload/analyze/poll lifecycle for faster iteration.
+    """
+    name: str = Field(..., description="Human-friendly assessment name")
+    architecture_text: str = Field(..., description="Raw architecture / workload description")
+    support_cases_csv: Optional[str] = Field(None, description="Optional CSV content of support cases for enrichment")
+
+
+class QuickAssessmentResponse(BaseModel):
+    id: str
+    name: str
+    created_at: str
+    pillar_results: List[PillarResult]
+    cross_pillar_conflicts: List[Dict[str, str]]
+    overall_architecture_score: Optional[float]
+    unified_corpus: str
+    elapsed_ms: int
+
+
+app = FastAPI(title="Well-Architected Backend", version="0.2.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Import and include progress API router
+from backend.app.progress_api import progress_api, set_mongo_db, set_assessments_store
+
+app.include_router(progress_api)
+
+
+def _new_id(prefix: str) -> str:
+    return f"{prefix}_{dt.datetime.utcnow().timestamp():.0f}".replace(".", "")
+
+
+@app.on_event("startup")
+async def _startup():  # pragma: no cover - side-effect initialization
+    global mongo_db
+    mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+    if AsyncIOMotorClient:
+        try:
+            client = AsyncIOMotorClient(
+                mongo_uri,
+                serverSelectionTimeoutMS=5000,
+                maxPoolSize=50,
+                minPoolSize=10
+            )
+            mongo_db = client[os.getenv("MONGO_DB", "well_architected")]
+            await mongo_db.command("ping")
+            print(f"[startup] [OK] MongoDB connected at {mongo_uri}")
+            
+            # Create indexes for efficient queries
+            await mongo_db["assessments"].create_index("id", unique=True)
+            await mongo_db["assessments"].create_index("created_at")
+            await mongo_db["assessments"].create_index("status")
+            print("[startup] [OK] Database indexes created (id, created_at, status)")
+        except Exception as e:  # pragma: no cover
+            mongo_db = None
+            print(f"[startup] [WARN]  MongoDB connection failed ({e})")
+            print("[startup] [WARN]  Using in-memory store (data will not persist)")
+    else:
+        print("[startup] [WARN]  motor not installed; using in-memory store")
+    
+    # Initialize progress API module with shared globals
+    set_mongo_db(mongo_db)
+    set_assessments_store(ASSESSMENTS)
+
+
+@app.get("/api/assessments", response_model=List[Assessment])
+async def list_assessments():
+    """List all assessments."""
+    if mongo_db is not None:
+        try:
+            cursor = mongo_db["assessments"].find().sort("created_at", -1)
+            docs = await cursor.to_list(length=100)
+            return [Assessment(**doc) for doc in docs]
+        except Exception as e:
+            print(f"[list_assessments] [ERROR] MongoDB query failed: {e}")
+            raise HTTPException(500, "database query failed")
+    return [Assessment(**a) for a in ASSESSMENTS.values()]
+
+
+@app.post("/api/assessments", response_model=Assessment)
+async def create_assessment(payload: Dict):
+    """Create a new assessment record.
+
+    Payload expects at least a 'name'. Optionally accepts 'description'.
+    Persists to MongoDB if available, else stores in in-memory dict.
+    """
+    name = payload.get("name")
+    if not name:
+        raise HTTPException(400, "name is required")
+    description = payload.get("description")
+    aid = _new_id("assess")
+    assessment = Assessment(
+        id=aid,
+        name=name,
+        description=description,
+        created_at=dt.datetime.utcnow().isoformat(),
+        status="pending",
+        progress=0,
+        pillar_statuses={p[1]: "pending" for p in PILLARS},
+        pillar_progress={p[1]: 0 for p in PILLARS},
+    )
+    if mongo_db is not None:
+        try:
+            await mongo_db["assessments"].insert_one(assessment.model_dump())
+            print(f"[create_assessment] [OK] Created assessment {aid} in MongoDB")
+        except Exception as e:
+            print(f"[create_assessment] [ERROR] MongoDB insert failed: {e}; using in-memory store")
+            ASSESSMENTS[aid] = assessment.model_dump()
+    else:
+        ASSESSMENTS[aid] = assessment.model_dump()
+    return assessment
+
+
+@app.get("/api/assessments/{aid}", response_model=Assessment)
+async def get_assessment(aid: str):
+    if mongo_db is not None:
+        try:
+            doc = await mongo_db["assessments"].find_one({"id": aid})
+            if not doc:
+                raise HTTPException(404, "assessment not found")
+            return Assessment(**doc)
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"[get_assessment] [ERROR] MongoDB query failed: {e}")
+            raise HTTPException(500, "database query failed")
+    a = ASSESSMENTS.get(aid)
+    if not a:
+        raise HTTPException(404, "assessment not found")
+    return Assessment(**a)
+
+
+@app.delete("/api/assessments/{aid}")
+async def delete_assessment(aid: str):
+    if mongo_db is not None:
+        try:
+            result = await mongo_db["assessments"].delete_one({"id": aid})
+            if result.deleted_count == 0:
+                raise HTTPException(404, "assessment not found")
+            print(f"[delete_assessment] [OK] Deleted assessment {aid} from MongoDB")
+            return {"status": "deleted", "id": aid}
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"[delete_assessment] [ERROR] MongoDB delete failed: {e}")
+            raise HTTPException(500, "database delete failed")
+    else:
+        if aid not in ASSESSMENTS:
+            raise HTTPException(404, "assessment not found")
+        del ASSESSMENTS[aid]
+        return {"status": "deleted", "id": aid}
+
+
+@app.delete("/api/assessments/{aid}/documents/{doc_id}")
+async def delete_document(aid: str, doc_id: str):
+    if mongo_db is not None:
+        try:
+            # Find the assessment
+            doc = await mongo_db["assessments"].find_one({"id": aid})
+            if not doc:
+                raise HTTPException(404, "assessment not found")
+            
+            # Remove document from documents array
+            documents = doc.get("documents", [])
+            original_count = len(documents)
+            documents = [d for d in documents if d.get("id") != doc_id]
+            
+            if len(documents) == original_count:
+                raise HTTPException(404, "document not found")
+            
+            # Update assessment with new documents list
+            await mongo_db["assessments"].update_one(
+                {"id": aid},
+                {"$set": {"documents": documents}}
+            )
+            print(f"[delete_document] [OK] Deleted document {doc_id} from assessment {aid}")
+            return {"status": "deleted", "document_id": doc_id}
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"[delete_document] [ERROR] MongoDB update failed: {e}")
+            raise HTTPException(500, "database update failed")
+    else:
+        # In-memory storage
+        assessment = ASSESSMENTS.get(aid)
+        if not assessment:
+            raise HTTPException(404, "assessment not found")
+        
+        documents = assessment.get("documents", [])
+        original_count = len(documents)
+        documents = [d for d in documents if d.get("id") != doc_id]
+        
+        if len(documents) == original_count:
+            raise HTTPException(404, "document not found")
+        
+        assessment["documents"] = documents
+        ASSESSMENTS[aid] = assessment
+        print(f"[delete_document] [OK] Deleted document {doc_id} from assessment {aid}")
+        return {"status": "deleted", "document_id": doc_id}
+
+
+def _categorize(filename: str, content_type: str) -> str:
+    if filename.endswith(".csv"):
+        return "case"
+    if any(filename.lower().endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".svg"]):
+        return "diagram"
+    return "architecture"
+
+
+@app.post("/api/assessments/{aid}/documents", response_model=List[Document])
+async def upload_documents(aid: str, files: List[UploadFile] = File(...)):
+    if mongo_db is not None:
+        doc = await mongo_db["assessments"].find_one({"id": aid})
+        if not doc:
+            raise HTTPException(404, "assessment not found")
+    else:
+        doc = ASSESSMENTS.get(aid)
+        if not doc:
+            raise HTTPException(404, "assessment not found")
+    
+    # Initialize DocumentAnalyzer
+    analyzer = DocumentAnalyzer(llm_enabled=True)
+    documents: List[Document] = []
+    
+    for uf in files:
+        file_bytes = await uf.read()
+        text_fallback = file_bytes.decode("utf-8", errors="ignore")
+        global DOC_COUNTER
+        DOC_COUNTER += 1
+        category = _categorize(uf.filename, uf.content_type or "")
+
+        analysis_result: Dict[str, Any] = {}
+        llm_analysis: str = ""
+        # New enrichment field holders
+        raw_extracted_text: Optional[str] = None
+        diagram_summary: Optional[str] = None
+        support_cases_summary: Optional[str] = None
+        strategy: Optional[str] = None
+        total_cases: Optional[int] = None
+        risk_signals: Optional[List[Any]] = None
+        thematic_patterns: Optional[Any] = None
+        structured_report: Optional[Dict[str, Any]] = None
+
+        try:
+            if category == "architecture":
+                # Architecture documents: store raw content directly without LLM analysis
+                # The actual analysis happens later during the assessment phase
+                llm_analysis = ""  # No LLM analysis at upload time
+                structured_report = None
+            elif category == "case":
+                analysis_result = await analyzer.analyze_support_cases(text_fallback, uf.filename)
+                llm_analysis = analysis_result.get("llm_analysis", "")
+                structured_report = analysis_result.get("structured_report")
+                total_cases = analysis_result.get("total_cases")
+                risk_signals = analysis_result.get("risk_signals")
+                thematic_patterns = analysis_result.get("thematic_patterns")
+                # Build concise summary (themes + top risks)
+                themes_list: List[str] = []
+                if isinstance(thematic_patterns, dict):
+                    themes_list = list(thematic_patterns.keys())
+                elif isinstance(thematic_patterns, list):
+                    # list of theme dicts or strings
+                    for t in thematic_patterns:
+                        if isinstance(t, dict):
+                            themes_list.append(t.get("theme") or t.get("name") or str(t)[:40])
+                        else:
+                            themes_list.append(str(t))
+                themes_list = [t for t in themes_list if t][:CASE_SUMMARY_MAX_CASES]
+                risk_list: List[str] = []
+                if isinstance(risk_signals, list):
+                    for r in risk_signals[:CASE_SUMMARY_MAX_CASES]:
+                        if isinstance(r, dict):
+                            label = r.get("issue") or r.get("pattern") or r.get("description") or str(r)
+                            sev = r.get("severity")
+                            risk_list.append(f"{label}{' [high]' if sev=='high' else ''}")
+                        else:
+                            risk_list.append(str(r))
+                # Truncation notice if more remain
+                extra_themes = (analysis_result.get("thematic_patterns") and len(themes_list) < len(analysis_result.get("thematic_patterns", [])))
+                extra_risks = (risk_signals and len(risk_list) < len(risk_signals))
+                lines: List[str] = []
+                if total_cases is not None:
+                    lines.append(f"Total cases: {total_cases}")
+                if themes_list:
+                    lines.append("Themes:")
+                    for t in themes_list:
+                        lines.append(f"- {t}")
+                    if extra_themes:
+                        remaining = len(analysis_result.get("thematic_patterns", [])) - len(themes_list)
+                        lines.append(f"(+{remaining} more themes)")
+                if risk_list:
+                    lines.append("Risks:")
+                    for r in risk_list:
+                        lines.append(f"- {r}")
+                    if extra_risks:
+                        remaining_r = len(risk_signals) - len(risk_list)
+                        lines.append(f"(+{remaining_r} more risks)")
+                support_cases_summary = "\n".join(lines) if lines else "No structured patterns detected"
+            elif category == "diagram":
+                analysis_result = await analyzer.analyze_diagram(file_bytes, uf.filename, uf.content_type or "")
+                llm_analysis = analysis_result.get("llm_analysis", "")
+                raw_extracted_text = analysis_result.get("extracted_text")
+                diagram_summary = analysis_result.get("summary")
+                strategy = analysis_result.get("strategy")
+                structured_report = analysis_result.get("structured_report")
+                # Heuristic fallback if summary empty
+                if not diagram_summary:
+                    tokens = []
+                    if raw_extracted_text:
+                        for line in raw_extracted_text.splitlines():
+                            token = line.strip()
+                            if token and len(tokens) < 12:
+                                tokens.append(token[:60])
+                    if not tokens:
+                        tokens = [f"Diagram placeholder (size={len(file_bytes)} bytes)"]
+                    diagram_summary = "\n".join(f"- {t}" for t in tokens) + "\n(heuristic fallback)"
+            else:
+                # Unknown category fallback
+                llm_analysis = _simple_llm_cleanse(text_fallback, uf.filename)
+        except Exception as e:
+            print(f"[upload_documents] [WARN] Analysis failed for {uf.filename}: {e.__class__.__name__}: {e}")
+            # Fallbacks on error
+            if category == "diagram":
+                raw_extracted_text = ""
+                diagram_summary = f"- Diagram analysis failed: {e.__class__.__name__}\n(heuristic fallback)"
+            elif category == "case":
+                support_cases_summary = f"Total cases: unknown\nNo structured patterns detected (error: {e.__class__.__name__})"
+            else:
+                llm_analysis = _simple_llm_cleanse(text_fallback, uf.filename)
+
+        # Build analysis_metadata focusing on structured_report plus provenance
+        analysis_metadata: Dict[str, Any] = {}
+        if structured_report:
+            analysis_metadata["structured_report"] = structured_report
+        if category == "diagram":
+            analysis_metadata["strategy"] = strategy
+        if category == "case":
+            analysis_metadata["total_cases"] = total_cases
+        # NOTE: llm_analysis retained for backward compatibility (deprecated; prefer structured_report + explicit fields)
+
+        d = Document(
+            id=f"doc_{DOC_COUNTER}",
+            filename=uf.filename,
+            content_type=uf.content_type or "text/plain",
+            size=len(file_bytes),
+            category=category,
+            uploaded_at=dt.datetime.utcnow().isoformat(),
+            raw_text=text_fallback if category == "architecture" else (text_fallback if category not in ["diagram", "case"] else None),
+            llm_analysis=llm_analysis or None,
+            analysis_metadata=analysis_metadata or None,
+            raw_extracted_text=raw_extracted_text,
+            diagram_summary=diagram_summary,
+            support_cases_summary=support_cases_summary,
+            strategy=strategy,
+            total_cases=total_cases,
+            risk_signals=risk_signals,
+            thematic_patterns=thematic_patterns
+        )
+        doc.setdefault("documents", []).append(d.model_dump())
+        documents.append(d)
+    
+    if mongo_db is not None:
+        try:
+            result = await mongo_db["assessments"].update_one(
+                {"id": aid},
+                {"$set": {"documents": doc["documents"]}}
+            )
+            print(f"[upload_documents] [OK] Uploaded {len(documents)} document(s) for {aid}")
+        except Exception as e:
+            print(f"[upload_documents] [ERROR] MongoDB update failed: {e}")
+            ASSESSMENTS[aid] = doc
+    else:
+        ASSESSMENTS[aid] = doc
+    return documents
+
+
+def _simple_llm_cleanse(text: str, filename: str) -> str:
+    """Placeholder 'LLM analysis' – extracts key sentence-like fragments.
+    Real implementation would call hosted model; for now heuristics.
+    """
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    top = lines[:8]
+    summary = " ".join(top)
+    return (
+        f"File: {filename}\nSummary Tokens: {min(len(summary.split()), 200)}\n" + summary[:1200]
+    )
+
+
+@app.post("/api/assessments/{aid}/analyze", response_model=Assessment)
+async def start_analysis(aid: str, background: BackgroundTasks):
+    if mongo_db is not None:
+        doc = await mongo_db["assessments"].find_one({"id": aid})
+        if not doc:
+            raise HTTPException(404, "assessment not found")
+    else:
+        doc = ASSESSMENTS.get(aid)
+        if not doc:
+            raise HTTPException(404, "assessment not found")
+    
+    assessment = Assessment(**doc)
+    if assessment.status not in ["pending", "failed"]:
+        return assessment
+    if not assessment.documents:
+        raise HTTPException(400, "upload documents first")
+    
+    # Initialize orchestrator
+    assessment.status = "preprocessing"
+    assessment.progress = 5
+    assessment.current_phase = "Initialization"
+    
+    update_fields = {
+        "status": assessment.status,
+        "progress": assessment.progress,
+        "current_phase": assessment.current_phase
+    }
+    if mongo_db is not None:
+        try:
+            await mongo_db["assessments"].update_one({"id": aid}, {"$set": update_fields})
+            print(f"[start_analysis] [OK] Started analysis for {aid}")
+        except Exception as e:
+            print(f"[start_analysis] [ERROR] MongoDB update failed: {e}")
+            ASSESSMENTS[aid] = assessment.model_dump()
+    else:
+        ASSESSMENTS[aid] = assessment.model_dump()
+    
+    # Start background orchestration
+    background.add_task(_run_orchestrated_assessment, aid)
+    return assessment
+
+
+def _extract_case_patterns(csv_text: str) -> str:
+    try:
+        reader = csv.reader(io.StringIO(csv_text))
+        rows = list(reader)
+        if len(rows) < 2:
+            return ""
+        header = rows[0]
+        patterns = []
+        for r in rows[1:25]:
+            joined = " ".join(r)
+            if any(k in joined.lower() for k in ["error", "failure", "timeout", "latency", "security"]):
+                patterns.append(joined[:240])
+        if patterns:
+            return "### Support Case Extracted Patterns\n" + "\n".join(f"- {p}" for p in patterns)
+    except Exception:
+        return ""
+    return ""
+
+
+async def _run_orchestrated_assessment(aid: str):
+    """Run complete assessment using AssessmentOrchestrator."""
+    try:
+        # Retrieve assessment
+        if mongo_db is not None:
+            doc = await mongo_db["assessments"].find_one({"id": aid})
+        else:
+            doc = ASSESSMENTS.get(aid)
+        
+        if not doc:
+            return
+        
+        documents = doc.get("documents", [])
+        
+        # Build analysis results dict from document metadata
+        analysis_results = {}
+        for d in documents:
+            if d.get("analysis_metadata"):
+                analysis_results[d["id"]] = d["analysis_metadata"]
+        
+        # Progress callback
+        async def progress_update(percent: int, description: str = ""):
+            await _update_progress(aid, percent)
+            if description:
+                await _update_phase(aid, description)
+        
+        # Pillar executor using corpus
+        async def execute_pillars(corpus):
+            # Update with unified corpus
+            corpus_text = corpus.full_corpus if hasattr(corpus, 'full_corpus') else str(corpus)
+            if mongo_db is not None:
+                try:
+                    await mongo_db["assessments"].update_one(
+                        {"id": aid},
+                        {"$set": {"unified_corpus": corpus_text}}
+                    )
+                    print(f"[execute_pillars] [OK] Persisted unified corpus for {aid}")
+                except Exception as e:
+                    print(f"[execute_pillars] [ERROR] MongoDB update failed: {e}")
+                    if aid in ASSESSMENTS:
+                        ASSESSMENTS[aid]["unified_corpus"] = corpus_text
+            else:
+                if aid in ASSESSMENTS:
+                    ASSESSMENTS[aid]["unified_corpus"] = corpus_text
+            
+            # Execute all 5 pillars concurrently with progress tracking
+            # Pillar evaluation happens in 20-80% range (60% total)
+            pillar_progress_start = 20
+            pillar_progress_range = 60
+            pillar_increment = pillar_progress_range / len(PILLARS)
+            completed_count = 0
+            
+            async def evaluate_with_progress(code, name):
+                nonlocal completed_count
+                result = await _evaluate_pillar(aid, code, name)
+                completed_count += 1
+                # Update progress after each pillar completes
+                current_progress = pillar_progress_start + int(completed_count * pillar_increment)
+                await _update_progress(aid, current_progress)
+                return result
+            
+            coros = [evaluate_with_progress(code, name) for code, name in PILLARS]
+            results = await asyncio.gather(*coros, return_exceptions=True)
+            
+            # Filter successful results
+            cleaned = []
+            for r in results:
+                if isinstance(r, PillarResult):
+                    cleaned.append(r.model_dump())
+                else:
+                    print(f"[pillar-error] {r}")
+            
+            return cleaned
+        
+        # Initialize orchestrator and run
+        orchestrator = AssessmentOrchestrator()
+        final_results = await orchestrator.run_assessment_lifecycle(
+            assessment_id=aid,
+            documents=documents,
+            analysis_results=analysis_results,
+            pillar_executor=execute_pillars,
+            progress_callback=progress_update
+        )
+        
+        # Store results
+        update_payload = {
+            "pillar_results": final_results["pillar_results"],
+            "cross_pillar_conflicts": final_results["cross_pillar_conflicts"],
+            "cohesive_recommendations": final_results.get("cohesive_recommendations", []),
+            "overall_architecture_score": final_results["overall_architecture_score"],
+            "unified_corpus": final_results["unified_corpus"],
+            "status": "completed",
+            "progress": 100,
+            "current_phase": "Completed"
+        }
+        
+        if mongo_db is not None:
+            try:
+                result = await mongo_db["assessments"].update_one(
+                    {"id": aid},
+                    {"$set": update_payload}
+                )
+                print(f"[orchestrated_assessment] [OK] Persisted final results for {aid}")
+            except Exception as e:
+                print(f"[orchestrated_assessment] [ERROR] MongoDB update failed: {e}")
+                if aid in ASSESSMENTS:
+                    ASSESSMENTS[aid].update(update_payload)
+        else:
+            if aid in ASSESSMENTS:
+                ASSESSMENTS[aid].update(update_payload)
+    
+    except Exception:
+        traceback.print_exc()
+        await _fail(aid)
+
+
+async def _run_pillars_update(aid: str):
+    """Legacy pillar execution (kept for backward compatibility)."""
+    try:
+        for pct in [10, 20]:
+            await _update_progress(aid, pct)
+            await asyncio.sleep(0.4)
+        # Real agent execution fallback to emulation if any initialization fails
+        results: List[PillarResult] = []
+        coros = [ _evaluate_pillar(aid, code, name) for code, name in PILLARS ]
+        results = await asyncio.gather(*coros, return_exceptions=True)
+        cleaned: List[PillarResult] = []
+        for r in results:
+            if isinstance(r, PillarResult):
+                cleaned.append(r)
+            else:  # exception captured
+                print(f"[pillar-error] {r}")
+        await _store_pillar_results(aid, cleaned)
+        await _update_progress(aid, 95)
+        await asyncio.sleep(0.6)
+        await _finalize(aid)
+    except Exception:
+        traceback.print_exc()
+        await _fail(aid)
+
+
+async def _update_pillar_status(aid: str, pillar_name: str, status: str):
+    """Update individual pillar status (pending/analyzing/completed/failed)."""
+    if mongo_db is not None:
+        try:
+            await mongo_db["assessments"].update_one(
+                {"id": aid},
+                {"$set": {f"pillar_statuses.{pillar_name}": status}}
+            )
+            print(f"[update_pillar_status] {pillar_name}: {status}")
+        except Exception as e:
+            print(f"[update_pillar_status] [ERROR] MongoDB update failed: {e}")
+            if aid in ASSESSMENTS:
+                ASSESSMENTS[aid].setdefault("pillar_statuses", {})[pillar_name] = status
+    else:
+        if aid in ASSESSMENTS:
+            ASSESSMENTS[aid].setdefault("pillar_statuses", {})[pillar_name] = status
+
+
+def _generate_description(subcat_key: str, score: int, pillar: str) -> str:
+    """Generate description explaining why and what the non-compliance or issue is"""
+    description_map = {
+        "Reliability": {
+            "Backup Strategy": f"The architecture lacks a comprehensive backup strategy (score: {score}/100). No documented backup policies, retention schedules, or recovery procedures are evident. This represents a critical gap in data protection and business continuity planning.",
+            "Disaster Recovery": f"Disaster recovery planning is insufficient or absent (score: {score}/100). Missing disaster recovery objectives (RTO/RPO), failover procedures, and cross-region redundancy. This exposes the system to extended outages during regional failures.",
+            "High Availability": f"High availability configuration is inadequate (score: {score}/100). Single points of failure exist, with no evidence of redundancy, load balancing, or zone-aware deployments. Service disruptions are likely during component failures.",
+            "Monitoring": f"Reliability monitoring is insufficient (score: {score}/100). Lack of health checks, availability metrics, and alerting mechanisms means failures may go undetected, extending recovery time.",
+            "Testing": f"Reliability testing practices are not established (score: {score}/100). No evidence of chaos engineering, failover testing, or disaster recovery drills. Production failures are likely to reveal untested failure modes."
+        },
+        "Security": {
+            "Identity Management": f"Identity and access management controls are weak (score: {score}/100). Missing multi-factor authentication, privileged access management, and identity governance. Unauthorized access risk is elevated.",
+            "Network Security": f"Network segmentation and security controls are inadequate (score: {score}/100). Flat network architecture without proper segmentation, network security groups, or private endpoints exposes resources to lateral movement attacks.",
+            "Data Protection": f"Data protection mechanisms are insufficient (score: {score}/100). Encryption at rest and in transit may not be implemented, and data classification and handling procedures are unclear. Data breach risk is significant.",
+            "Threat Detection": f"Threat detection capabilities are limited (score: {score}/100). Missing security information and event management (SIEM), threat intelligence integration, and security monitoring. Breaches may remain undetected for extended periods."
+        },
+        "Cost Optimization": {
+            "Resource Optimization": f"Resources are not optimized for cost efficiency (score: {score}/100). Oversized VMs, unattached disks, and idle resources indicate wasteful spending. Right-sizing and lifecycle management are not practiced.",
+            "Monitoring": f"Cost monitoring and governance are absent (score: {score}/100). No budgets, cost alerts, or spending analysis in place. Unexpected cost overruns and budget violations are likely.",
+            "Reserved Capacity": f"Cost-saving commitment options are not utilized (score: {score}/100). Workloads run on pay-as-you-go pricing without leveraging reserved instances or savings plans, missing 30-70% potential savings."
+        },
+        "Operational Excellence": {
+            "Automation": f"Operational processes rely on manual intervention (score: {score}/100). Deployment, scaling, and recovery procedures are not automated, increasing operational burden and error rates.",
+            "Monitoring": f"Operational visibility is limited (score: {score}/100). Application performance monitoring, logging, and operational dashboards are absent or incomplete. Problem diagnosis and resolution are delayed.",
+            "Documentation": f"Technical documentation is inadequate (score: {score}/100). Architecture diagrams, runbooks, and operational procedures are missing or outdated. Knowledge transfer and incident response are hindered.",
+            "Testing": f"Operational testing is insufficient (score: {score}/100). Deployment validation, integration testing, and staging environments are not properly established. Production issues are common."
+        },
+        "Performance Efficiency": {
+            "Scalability": f"Scalability design is inadequate (score: {score}/100). Auto-scaling is not configured, and the architecture cannot adapt to demand changes. Performance degradation during peak loads is expected.",
+            "Resource Selection": f"Resource choices are suboptimal (score: {score}/100). VM series, storage tiers, and service SKUs do not match workload requirements, leading to either overspending or performance bottlenecks.",
+            "Monitoring": f"Performance monitoring is insufficient (score: {score}/100). Missing APM, performance counters, and baseline metrics prevent proactive optimization and capacity planning.",
+            "Optimization": f"Workload optimization is not performed (score: {score}/100). Code efficiency, database queries, and caching strategies are not optimized. Response times and resource utilization suffer."
+        }
+    }
+    
+    specific_desc = description_map.get(pillar, {}).get(subcat_key)
+    if specific_desc:
+        return specific_desc
+    
+    # Generic fallback
+    return f"The architecture shows significant gaps in {subcat_key.lower()} (score: {score}/100). Documentation lacks sufficient detail in this area, suggesting incomplete implementation or missing configurations that need attention."
+
+
+def _generate_recommendation(subcat_key: str, pillar: str) -> str:
+    """Generate actionable recommendation on how to remediate based on Azure best practices"""
+    recommendation_map = {
+        "Reliability": {
+            "Backup Strategy": "Implement Azure Backup for VMs and databases with defined RPO/RTO targets. Configure backup policies with appropriate retention (daily, weekly, monthly). Enable geo-redundant backup storage for critical data. Document and test restore procedures regularly. Reference: https://learn.microsoft.com/azure/backup/",
+            "Disaster Recovery": "Deploy resources across multiple Azure regions using Azure Site Recovery or active-active patterns. Define RTO/RPO objectives and implement automated failover procedures. Use Azure Traffic Manager or Front Door for multi-region routing. Conduct quarterly disaster recovery drills. Reference: https://learn.microsoft.com/azure/reliability/",
+            "High Availability": "Implement availability zones for zone-redundant deployments. Use Azure Load Balancer or Application Gateway for traffic distribution. Deploy VM scale sets with health probes and auto-repair. Eliminate single points of failure through redundancy. Reference: https://learn.microsoft.com/azure/reliability/availability-zones-overview",
+            "Monitoring": "Deploy Azure Monitor with application insights and log analytics. Configure availability tests and multi-step web tests. Set up action groups for alert notifications. Implement health probes on load balancers and application gateways. Reference: https://learn.microsoft.com/azure/azure-monitor/",
+            "Testing": "Establish chaos engineering practices using Azure Chaos Studio. Perform regular failover testing and disaster recovery drills. Implement blue-green deployments and canary releases. Document and validate all failure scenarios. Reference: https://learn.microsoft.com/azure/chaos-studio/"
+        },
+        "Security": {
+            "Identity Management": "Enforce Azure AD Multi-Factor Authentication for all users. Implement Privileged Identity Management (PIM) for admin access. Use Managed Identities for Azure resources instead of service principals. Enable Conditional Access policies based on risk. Reference: https://learn.microsoft.com/entra/identity/",
+            "Network Security": "Implement network segmentation using Azure Virtual Network and subnets. Deploy Network Security Groups (NSGs) with least-privilege rules. Use Private Endpoints for PaaS services. Enable Azure Firewall or third-party NVAs for centralized traffic inspection. Reference: https://learn.microsoft.com/azure/security/fundamentals/network-best-practices",
+            "Data Protection": "Enable encryption at rest using Azure Storage Service Encryption and Transparent Data Encryption for databases. Enforce TLS 1.2+ for all data in transit. Implement Azure Key Vault for secrets management. Classify data and apply appropriate protection policies. Reference: https://learn.microsoft.com/azure/security/fundamentals/data-encryption-best-practices",
+            "Threat Detection": "Deploy Microsoft Defender for Cloud for threat detection across Azure resources. Enable Microsoft Sentinel for SIEM and SOAR capabilities. Configure security alerts and incident response workflows. Integrate threat intelligence feeds. Reference: https://learn.microsoft.com/azure/defender-for-cloud/"
+        },
+        "Cost Optimization": {
+            "Resource Optimization": "Right-size VMs based on actual utilization using Azure Advisor recommendations. Deallocate or delete unused resources. Implement Azure Policy to prevent oversized deployments. Use Azure Cost Management for ongoing optimization. Reference: https://learn.microsoft.com/azure/cost-management-billing/",
+            "Monitoring": "Configure Azure Cost Management budgets with alert thresholds. Enable cost analysis and allocation tags. Set up daily cost notifications for stakeholders. Implement chargeback models by department or project. Reference: https://learn.microsoft.com/azure/cost-management-billing/costs/",
+            "Reserved Capacity": "Analyze workload patterns and purchase Azure Reserved Instances for stable workloads (1-year or 3-year terms). Consider Azure Savings Plans for flexible commitment-based discounts. Use Azure Hybrid Benefit for Windows and SQL licenses. Reference: https://learn.microsoft.com/azure/cost-management-billing/reservations/"
+        },
+        "Operational Excellence": {
+            "Automation": "Implement Infrastructure as Code using Bicep or Terraform. Automate deployments with Azure DevOps or GitHub Actions. Use Azure Automation for operational tasks and runbooks. Implement auto-scaling policies for compute resources. Reference: https://learn.microsoft.com/azure/automation/",
+            "Monitoring": "Deploy Application Insights for application performance monitoring. Configure custom metrics and dashboards in Azure Monitor. Implement distributed tracing for microservices. Enable Log Analytics for centralized logging. Reference: https://learn.microsoft.com/azure/azure-monitor/app/app-insights-overview",
+            "Documentation": "Create architecture diagrams using Azure Architecture Center patterns. Document operational runbooks for common scenarios. Maintain up-to-date configuration management databases. Use Azure Resource Graph for automated inventory documentation. Reference: https://learn.microsoft.com/azure/architecture/",
+            "Testing": "Establish CI/CD pipelines with automated testing gates. Implement staging environments that mirror production. Perform integration and load testing before production deployment. Use feature flags for gradual rollout. Reference: https://learn.microsoft.com/azure/devops/"
+        },
+        "Performance Efficiency": {
+            "Scalability": "Configure auto-scaling rules based on metrics (CPU, memory, queue length). Use Azure App Service or VM Scale Sets for horizontal scaling. Implement application-level caching with Azure Cache for Redis. Design stateless services for scale-out patterns. Reference: https://learn.microsoft.com/azure/architecture/best-practices/auto-scaling",
+            "Resource Selection": "Use Azure Advisor to identify optimal VM sizes and storage tiers. Select appropriate service tiers (Basic, Standard, Premium) based on workload requirements. Evaluate compute-optimized, memory-optimized, or storage-optimized VM series. Reference: https://learn.microsoft.com/azure/virtual-machines/sizes",
+            "Monitoring": "Implement Application Performance Management (APM) with Application Insights. Establish performance baselines and SLI/SLO targets. Monitor database query performance and optimize slow queries. Track response times, throughput, and resource utilization. Reference: https://learn.microsoft.com/azure/azure-monitor/app/app-insights-overview",
+            "Optimization": "Optimize database queries and add appropriate indexes. Implement CDN for static content delivery. Use connection pooling and async patterns in application code. Profile and optimize hot paths in application code. Reference: https://learn.microsoft.com/azure/architecture/best-practices/"
+        }
+    }
+    
+    specific_rec = recommendation_map.get(pillar, {}).get(subcat_key)
+    if specific_rec:
+        return specific_rec
+    
+    # Generic fallback
+    return f"Review Azure Well-Architected Framework guidance for {subcat_key.lower()}. Implement recommended practices and establish monitoring to ensure compliance. Reference: https://learn.microsoft.com/azure/well-architected/"
+
+
+def _generate_business_impact(subcat_key: str, score: int, pillar: str) -> str:
+    """Generate business-focused impact statement based on subcategory and pillar"""
+    impact_map = {
+        "Reliability": {
+            "Backup Strategy": "Inadequate backup strategy increases risk of data loss and extended downtime during incidents, directly impacting business continuity and customer trust",
+            "Disaster Recovery": "Without proper disaster recovery planning, business operations face prolonged outages during major incidents, resulting in revenue loss and SLA violations",
+            "High Availability": "Poor high availability design leads to frequent service disruptions, degrading user experience and potentially violating service commitments",
+            "Monitoring": "Insufficient monitoring delays incident detection and response, extending mean time to recovery (MTTR) and increasing business impact of failures",
+            "Testing": "Lack of reliability testing increases the likelihood of production failures, resulting in unexpected downtime and emergency response costs"
+        },
+        "Security": {
+            "Identity Management": "Weak identity controls increase unauthorized access risk, potentially exposing sensitive data and violating compliance requirements",
+            "Network Security": "Insufficient network segmentation creates lateral movement opportunities for attackers, amplifying breach impact across business systems",
+            "Data Protection": "Inadequate data protection exposes the organization to data breaches, regulatory penalties, and reputational damage",
+            "Threat Detection": "Limited threat detection capabilities delay breach discovery, increasing attacker dwell time and potential damage to business operations"
+        },
+        "Cost Optimization": {
+            "Resource Optimization": "Unoptimized resources result in unnecessary cloud spending, reducing budget availability for strategic business initiatives",
+            "Monitoring": "Without cost monitoring, spending anomalies go undetected, leading to budget overruns and reduced financial predictability",
+            "Reserved Capacity": "Failure to leverage reserved capacity options leaves significant cost savings unrealized, impacting overall cloud ROI"
+        },
+        "Operational Excellence": {
+            "Automation": "Manual processes increase operational overhead and human error risk, slowing deployment velocity and reducing team productivity",
+            "Monitoring": "Inadequate operational monitoring reduces visibility into system health, delaying problem detection and extending incident resolution time",
+            "Documentation": "Poor documentation increases onboarding time and knowledge silos, creating operational risk during team transitions",
+            "Testing": "Insufficient operational testing increases the risk of failed deployments, causing unplanned downtime and rollback costs"
+        },
+        "Performance Efficiency": {
+            "Scalability": "Poor scalability design limits growth capacity, risking service degradation during peak demand and lost business opportunities",
+            "Resource Selection": "Suboptimal resource choices lead to over-provisioning costs or performance bottlenecks affecting user experience",
+            "Monitoring": "Lack of performance monitoring prevents proactive optimization, allowing degradation to impact end-user satisfaction",
+            "Optimization": "Unoptimized workloads waste resources and increase response times, directly impacting user experience and operational costs"
+        }
+    }
+    
+    # Try to find specific impact, otherwise generate generic business-focused statement
+    specific_impact = impact_map.get(pillar, {}).get(subcat_key)
+    if specific_impact:
+        return specific_impact
+    
+    # Generic business-focused fallback
+    if score < 50:
+        return f"Critical gaps in {subcat_key.lower()} create significant business risk, potentially leading to service disruptions, compliance violations, or security incidents"
+    elif score < 65:
+        return f"Deficiencies in {subcat_key.lower()} limit operational efficiency and increase risk exposure, impacting service reliability and business agility"
+    else:
+        return f"Improvements in {subcat_key.lower()} will enhance operational maturity, reduce risk, and better align with industry best practices"
+
+
+async def _update_pillar_progress(aid: str, pillar_name: str, progress: int):
+    """Update individual pillar progress (0-100)."""
+    if mongo_db is not None:
+        try:
+            await mongo_db["assessments"].update_one(
+                {"id": aid},
+                {"$set": {f"pillar_progress.{pillar_name}": progress}}
+            )
+        except Exception as e:
+            print(f"[update_pillar_progress] [ERROR] MongoDB update failed: {e}")
+            if aid in ASSESSMENTS:
+                ASSESSMENTS[aid].setdefault("pillar_progress", {})[pillar_name] = progress
+    else:
+        if aid in ASSESSMENTS:
+            ASSESSMENTS[aid].setdefault("pillar_progress", {})[pillar_name] = progress
+
+
+async def _update_progress(aid: str, pct: int):
+    if mongo_db is not None:
+        try:
+            await mongo_db["assessments"].update_one({"id": aid}, {"$set": {"progress": pct}})
+        except Exception as e:
+            print(f"[update_progress] [ERROR] MongoDB update failed: {e}")
+            if aid in ASSESSMENTS:
+                ASSESSMENTS[aid]["progress"] = pct
+    else:
+        a = ASSESSMENTS.get(aid)
+        if not a:
+            return
+        a["progress"] = pct
+        ASSESSMENTS[aid] = a
+
+
+async def _update_phase(aid: str, phase: str):
+    if mongo_db is not None:
+        try:
+            await mongo_db["assessments"].update_one({"id": aid}, {"$set": {"current_phase": phase}})
+        except Exception as e:
+            print(f"[update_phase] [ERROR] MongoDB update failed: {e}")
+            if aid in ASSESSMENTS:
+                ASSESSMENTS[aid]["current_phase"] = phase
+    else:
+        a = ASSESSMENTS.get(aid)
+        if not a:
+            return
+        a["current_phase"] = phase
+        ASSESSMENTS[aid] = a
+
+
+def _calculate_conservative_score(corpus: str, code: str, name: str) -> tuple[int, str, Dict[str, int], str, float, int, Dict[str, Any]]:
+    """
+    Evidence-based scoring with confidence metric.
+    
+    Returns:
+        (overall_score, confidence_level, subcategories)
+    
+    Confidence levels:
+        - Low: <30% concept coverage, minimal corpus
+        - Medium: 30-70% coverage, moderate corpus
+        - High: >70% coverage, comprehensive corpus
+    
+    Scoring approach:
+        - Corpus density adjustment: rewards comprehensive documentation
+        - Concept coverage requirements: penalizes missing critical concepts
+        - Weighted domains: different concepts have different value
+        - Absence penalties: gaps in evidence reduce score
+        - Implementation vs mention: distinguishes "no X configured" from "X properly configured"
+    """
+    corpus_lower = corpus.lower()
+    # Detailed breakdown structure (bottom-up justification)
+    breakdown: Dict[str, Any] = {
+        "pillar": code,
+        "name": name,
+        "concepts": {},  # will hold found/missing lists per tier
+        "weights": {},   # per concept -> weight contribution
+        "steps": [],     # sequential adjustments with before/after & reason
+        "raw_components": {},  # critical_score, important_score, nice_score
+    }
+    corpus_size = len(corpus)
+
+    # Semantic alias enrichment (helps detect evidence even if synonyms used)
+    if code == "performance":
+        alias_tokens = []
+        if "load balancer" in corpus_lower:
+            alias_tokens.append("load balancing")
+        if any(x in corpus_lower for x in ["hpa", "horizontal pod autoscaler", "cluster autoscaler"]):
+            alias_tokens.append("scalability")
+        if any(x in corpus_lower for x in ["capacity & demand planning", "capacity planning"]):
+            alias_tokens.append("throughput")
+        if "cpu" in corpus_lower and "alert" in corpus_lower:
+            alias_tokens.append("monitoring")
+        if "profil" in corpus_lower:  # profiling / profile
+            alias_tokens.append("optimization")
+        # Extended performance aliases
+        if any(x in corpus_lower for x in ["p95", "p99", "percentile", "response time"]):
+            alias_tokens.append("latency")
+        if any(x in corpus_lower for x in ["queue depth", "queue length", "message backlog"]):
+            alias_tokens.append("throughput")
+        if any(x in corpus_lower for x in ["requests per second", "rps", "transactions per second", "tps"]):
+            alias_tokens.append("throughput")
+        if any(x in corpus_lower for x in ["connection pool", "thread pool", "worker pool"]):
+            alias_tokens.append("scalability")
+        if any(x in corpus_lower for x in ["query optimization", "index tuning", "execution plan"]):
+            alias_tokens.append("query tuning")
+        if alias_tokens:
+            # Append aliases to corpus_lower so downstream simple 'in' checks pick them up
+            corpus_lower += " " + " ".join(sorted(set(alias_tokens)))
+            print(f"[semantic-alias] performance: added aliases {sorted(set(alias_tokens))}")
+
+    # --- Synonym enrichment for non-performance pillars ---
+    if code != "performance":
+        extra_aliases: List[str] = []
+        if code == "reliability":
+            if "single point of failure" in corpus_lower:
+                extra_aliases.append("redundancy")
+            if "traffic manager" in corpus_lower or "front door" in corpus_lower:
+                extra_aliases.append("failover")
+            if "site recovery" in corpus_lower:
+                extra_aliases.append("disaster recovery")
+            if "availability zone" in corpus_lower or "zone-redundant" in corpus_lower:
+                extra_aliases.append("availability")
+            if "self-healing" in corpus_lower or "auto-repair" in corpus_lower:
+                extra_aliases.append("resiliency")
+            if "health probe" in corpus_lower:
+                extra_aliases.append("health check")
+            if "sla" in corpus_lower and "uptime" in corpus_lower:
+                extra_aliases.append("availability")
+            # Extended reliability aliases
+            if any(x in corpus_lower for x in ["rto", "recovery time objective"]):
+                extra_aliases.append("disaster recovery")
+            if any(x in corpus_lower for x in ["rpo", "recovery point objective"]):
+                extra_aliases.append("backup")
+            if any(x in corpus_lower for x in ["active-active", "active-passive", "standby"]):
+                extra_aliases.append("failover")
+            if any(x in corpus_lower for x in ["partition tolerance", "split-brain", "quorum"]):
+                extra_aliases.append("resiliency")
+            if any(x in corpus_lower for x in ["chaos monkey", "fault injection", "failure testing"]):
+                extra_aliases.append("chaos engineering")
+        elif code == "security":
+            if "private endpoint" in corpus_lower:
+                extra_aliases.append("network security")
+            if "defender for cloud" in corpus_lower or "microsoft defender" in corpus_lower:
+                extra_aliases.append("threat detection")
+            if "sentinel" in corpus_lower or "siem" in corpus_lower:
+                extra_aliases.append("threat detection")
+            if "pim" in corpus_lower or "privileged identity" in corpus_lower:
+                extra_aliases.append("authorization")
+            if "mfa" in corpus_lower or "multi-factor authentication" in corpus_lower:
+                extra_aliases.append("authentication")
+            if "conditional access" in corpus_lower or "least privilege" in corpus_lower:
+                extra_aliases.append("authorization")
+            # Extended security aliases
+            if any(x in corpus_lower for x in ["penetration test", "pen test", "vulnerability scan"]):
+                extra_aliases.append("threat detection")
+            if any(x in corpus_lower for x in ["waf", "web application firewall", "ddos protection"]):
+                extra_aliases.append("firewall")
+            if any(x in corpus_lower for x in ["security baseline", "cis benchmark", "hardening"]):
+                extra_aliases.append("compliance")
+            if any(x in corpus_lower for x in ["secrets rotation", "credential rotation"]):
+                extra_aliases.append("key vault")
+            if any(x in corpus_lower for x in ["tls", "ssl", "https", "encryption in transit"]):
+                extra_aliases.append("encryption")
+        elif code == "operational":
+            if "infrastructure as code" in corpus_lower or "bicep" in corpus_lower or "terraform" in corpus_lower:
+                extra_aliases.append("deployment")
+            if "runbook" in corpus_lower:
+                extra_aliases.append("automation")
+            if "observability" in corpus_lower:
+                extra_aliases.append("monitoring")
+            if "blue-green" in corpus_lower or "canary" in corpus_lower:
+                extra_aliases.append("deployment")
+            # Extended operational aliases
+            if any(x in corpus_lower for x in ["runbook automation", "automated remediation", "self-service"]):
+                extra_aliases.append("automation")
+            if any(x in corpus_lower for x in ["change management", "change control", "change approval"]):
+                extra_aliases.append("deployment")
+            if any(x in corpus_lower for x in ["incident management", "on-call", "pagerduty"]):
+                extra_aliases.append("alerting")
+            if any(x in corpus_lower for x in ["sre", "site reliability", "error budget"]):
+                extra_aliases.append("monitoring")
+            if any(x in corpus_lower for x in ["distributed tracing", "correlation id", "trace context"]):
+                extra_aliases.append("observability")
+        elif code == "cost":
+            if "reserved instance" in corpus_lower or "savings plan" in corpus_lower:
+                extra_aliases.append("reserved instance")
+            if "rightsizing" in corpus_lower or "right-sizing" in corpus_lower:
+                extra_aliases.append("optimization")
+            if "lifecycle policy" in corpus_lower:
+                extra_aliases.append("optimization")
+            if "finops" in corpus_lower:
+                extra_aliases.append("cost")
+            # Extended cost aliases
+            if any(x in corpus_lower for x in ["cost anomaly", "anomaly detection", "spend anomaly"]):
+                extra_aliases.append("monitoring")
+            if any(x in corpus_lower for x in ["chargeback", "showback", "cost allocation"]):
+                extra_aliases.append("tagging")
+            if any(x in corpus_lower for x in ["spot instance", "spot vm", "low-priority"]):
+                extra_aliases.append("spot instance")
+            if any(x in corpus_lower for x in ["commitment", "azure hybrid benefit", "ahb"]):
+                extra_aliases.append("reserved instance")
+            if any(x in corpus_lower for x in ["waste", "orphaned resource", "idle resource"]):
+                extra_aliases.append("optimization")
+        if extra_aliases:
+            corpus_lower += " " + " ".join(sorted(set(extra_aliases)))
+            print(f"[semantic-alias] {code}: added aliases {sorted(set(extra_aliases))}")
+    
+    # Check for negative indicators (things mentioned as missing/not configured)
+    # Detect actual implementation gaps (context-aware)
+    # Distinguish between "no backup" (BAD) and "no public exposure" (GOOD)
+    # Detect ACTUAL implementation gaps (things that are broken/missing)
+    # These are BAD and should be penalized
+    actual_gap_patterns = [
+        "not configured", "not enabled", "not implemented", "disabled", "manual only",
+        "not yet", "doesn't have", "lacks", "anti-pattern", "known issue",
+        "technical debt", "backup not configured", "backup missing",
+        "disaster recovery not configured", "dr not configured",
+        "redundancy not configured", "failover not configured",
+        "encryption not enabled", "encryption disabled",
+        "monitoring not configured", "logging not enabled",
+        "mfa not configured", "rbac not implemented"
+    ]
+    
+    # Positive negations - these are GOOD security/reliability practices
+    # Should NOT be penalized (e.g., "no public internet" is GOOD)
+    positive_negations = [
+        "no public", "no internet", "no external access", "no direct access",
+        "no single point", "no hardcoded", "no plaintext", "no unencrypted",
+        "no manual", "no downtime", "zero downtime", "no data loss"
+    ]
+    
+    # First, remove positive negations from corpus for gap counting
+    corpus_for_gap_check = corpus_lower
+    for pos_neg in positive_negations:
+        corpus_for_gap_check = corpus_for_gap_check.replace(pos_neg, "")
+    
+    # Now count actual gaps in the cleaned corpus
+    negative_mentions = sum(corpus_for_gap_check.count(pattern) for pattern in actual_gap_patterns)
+    
+    # Define pillar-specific concepts with weights (critical vs. important)
+    concepts = {
+        "reliability": {
+            "critical": ["redundancy", "failover", "backup", "disaster recovery", "availability"],
+            "important": ["replica", "multi-region", "health check", "monitoring", "sla"],
+            "nice_to_have": ["resiliency", "chaos engineering", "circuit breaker"]
+        },
+        "security": {
+            "critical": ["encryption", "authentication", "authorization", "key vault"],
+            "important": ["rbac", "network security", "firewall", "identity", "secret"],
+            "nice_to_have": ["zero trust", "threat detection", "compliance", "audit"]
+        },
+        "cost": {
+            "critical": ["cost", "pricing", "budget"],
+            "important": ["optimization", "reserved instance", "tagging", "monitoring"],
+            "nice_to_have": ["autoscaling", "rightsizing", "spot instance"]
+        },
+        "operational": {
+            "critical": ["monitoring", "logging", "deployment"],
+            "important": ["ci/cd", "pipeline", "automation", "alerting"],
+            "nice_to_have": ["infrastructure as code", "gitops", "observability"]
+        },
+        "performance": {
+            "critical": ["latency", "throughput", "scalability"],
+            "important": ["cache", "cdn", "load balancing", "indexing"],
+            "nice_to_have": ["compression", "optimization", "query tuning"]
+        }
+    }
+
+    # Advanced practice patterns (gates for >80 / >90 bands)
+    advanced_patterns = {
+        "reliability": ["rto", "rpo", "chaos", "fault injection", "circuit breaker", "active-active", "quorum"],
+        "security": ["threat modeling", "penetration test", "key rotation", "purple team", "conditional access", "managed identity", "waf", "ddos"],
+        "cost": ["anomaly detection", "chargeback", "showback", "finops", "reserved instance", "rightsizing", "spot", "commitment"],
+        "operational": ["runbook", "auto-remediation", "error budget", "postmortem", "canary", "blue-green", "slo", "on-call"],
+        "performance": ["p95", "p99", "benchmark", "capacity planning", "profiling", "load test", "stress test", "query optimization"]
+    }
+    
+    pillar_concepts = concepts.get(code, {"critical": [], "important": [], "nice_to_have": []})
+    
+    # Calculate concept coverage
+    critical_found_list = [c for c in pillar_concepts["critical"] if c in corpus_lower]
+    critical_found = len(critical_found_list)
+    critical_total = len(pillar_concepts["critical"])
+    important_found_list = [c for c in pillar_concepts["important"] if c in corpus_lower]
+    important_found = len(important_found_list)
+    important_total = len(pillar_concepts["important"])
+    nice_found_list = [c for c in pillar_concepts["nice_to_have"] if c in corpus_lower]
+    nice_found = len(nice_found_list)
+    nice_total = len(pillar_concepts["nice_to_have"])
+    
+    total_concepts = critical_total + important_total + nice_total
+    concepts_found = critical_found + important_found + nice_found
+    coverage_pct = (concepts_found / total_concepts * 100) if total_concepts > 0 else 0
+    
+    # Corpus density (evidence depth)
+    # Refined tiers + depth factors (surface vs. implementation vs. metrics)
+    if corpus_size < 800:
+        density_multiplier = 0.35  # very small doc should not exceed mid bands
+    elif corpus_size < 2500:
+        density_multiplier = 0.7
+    else:
+        density_multiplier = 1.0
+
+    # Depth / specificity assessment
+    import re as _re_depth
+    # Simple sentence segmentation: split on period/question/exclamation
+    sentences = [s.strip() for s in _re_depth.split(r'[.!?]', corpus) if isinstance(s, str) and s.strip()]
+    avg_sentence_len = sum(len(s) for s in sentences) / max(1, len(sentences))
+    implementation_verbs = ["deploy", "automate", "monitor", "test", "enforce", "rotate", "scan", "instrument", "benchmark", "backup", "restore", "replicate", "harden", "patch"]
+    impl_hits = sum(1 for v in implementation_verbs if v in corpus_lower)
+    metric_regex = _re_depth.compile(r"\b\d+(?:\.\d+)?\s*(?:ms|s|sec|seconds|minutes|hours|days|%|gb|tb|mbps|rps|tps|qps|sla|cost|usd|\$)\b")
+    metric_pairs = len(set(metric_regex.findall(corpus_lower)))
+    advanced_hits = sum(1 for p in advanced_patterns.get(code, []) if p in corpus_lower)
+
+    depth_factor = 0.6
+    if avg_sentence_len > 60:  # longer, descriptive sentences
+        depth_factor += 0.15
+    if impl_hits >= 5:
+        depth_factor += 0.15
+    if metric_pairs >= 3:
+        depth_factor += 0.15
+    if advanced_hits >= 3:
+        depth_factor += 0.1
+    depth_factor = min(depth_factor, 1.15)
+    
+    # Base score from concept coverage with weighted importance
+    critical_score = (critical_found / critical_total * 50) if critical_total > 0 else 0
+    important_score = (important_found / important_total * 30) if important_total > 0 else 0
+    nice_score = (nice_found / nice_total * 20) if nice_total > 0 else 0
+    breakdown["raw_components"] = {
+        "critical_score": round(critical_score, 2),
+        "important_score": round(important_score, 2),
+        "nice_score": round(nice_score, 2)
+    }
+    # Per-concept weight contribution (before penalties/multipliers)
+    for c in pillar_concepts["critical"]:
+        breakdown["weights"][c] = round(50 / critical_total, 2) if critical_total else 0
+    for c in pillar_concepts["important"]:
+        breakdown["weights"][c] = round(30 / important_total, 2) if important_total else 0
+    for c in pillar_concepts["nice_to_have"]:
+        breakdown["weights"][c] = round(20 / nice_total, 2) if nice_total else 0
+    breakdown["concepts"] = {
+        "critical": {
+            "found": critical_found_list,
+            "missing": [c for c in pillar_concepts["critical"] if c not in critical_found_list]
+        },
+        "important": {
+            "found": important_found_list,
+            "missing": [c for c in pillar_concepts["important"] if c not in important_found_list]
+        },
+        "nice_to_have": {
+            "found": nice_found_list,
+            "missing": [c for c in pillar_concepts["nice_to_have"] if c not in nice_found_list]
+        }
+    }
+    
+    raw_score = critical_score + important_score + nice_score
+    
+    adjusted_score = int(raw_score * density_multiplier * depth_factor)
+    breakdown["steps"].append({
+        "step": "initial_scaling",
+        "raw_score": round(raw_score, 2),
+        "density_multiplier": density_multiplier,
+        "depth_factor": round(depth_factor, 2),
+        "after": adjusted_score,
+        "reason": "Apply density & depth multipliers"
+    })
+    # Remove broad clean bonus; replaced with gated bonuses later
+    
+    # Apply penalty for ACTUAL gaps (positive negations already filtered)
+    if negative_mentions > 3:
+        negative_penalty = min(0.50, (negative_mentions - 3) / 80)  # slightly softened
+        before = adjusted_score
+        adjusted_score = int(adjusted_score * (1 - negative_penalty))
+        breakdown["steps"].append({
+            "step": "negative_mentions_penalty",
+            "before": before,
+            "after": adjusted_score,
+            "negative_mentions": negative_mentions,
+            "penalty_fraction": round(negative_penalty, 3),
+            "reason": "Penalty for multiple implementation gaps"
+        })
+    elif negative_mentions > 0:
+        negative_penalty = negative_mentions * 0.015  # softened minor penalty
+        before = adjusted_score
+        adjusted_score = int(adjusted_score * (1 - negative_penalty))
+        breakdown["steps"].append({
+            "step": "minor_gaps_penalty",
+            "before": before,
+            "after": adjusted_score,
+            "negative_mentions": negative_mentions,
+            "penalty_fraction": round(negative_penalty, 3),
+            "reason": "Minor gaps present"
+        })
+    else:
+        if coverage_pct > 70 and corpus_size > 500:
+            before = adjusted_score
+            adjusted_score = min(100, int(adjusted_score * 1.15))
+            breakdown["steps"].append({
+                "step": "clean_bonus",
+                "before": before,
+                "after": adjusted_score,
+                "reason": "No gaps + strong coverage"
+            })
+
+    # Reliability excellence bonus: if ALL critical concepts present and most important ones too
+    if code == "reliability" and critical_total > 0:
+        all_critical = critical_found == critical_total
+        important_threshold = important_total == 0 or important_found >= max(1, int(0.7 * important_total))
+        if all_critical and important_threshold:
+            # Lift score to at least 70 and apply an excellence multiplier if still below 80
+            if adjusted_score < 70:
+                print(f"[reliability-bonus] Raising reliability score floor to 70 (was {adjusted_score}) - all critical concepts present")
+                before = adjusted_score
+                adjusted_score = 70
+                breakdown["steps"].append({"step": "reliability_floor", "before": before, "after": adjusted_score, "reason": "All critical + sufficient important"})
+            elif adjusted_score < 80:
+                before = adjusted_score
+                boosted = min(100, int(adjusted_score * 1.15))
+                print(f"[reliability-bonus] Applying excellence boost (+15%) {adjusted_score} -> {boosted}")
+                adjusted_score = boosted
+                breakdown["steps"].append({"step": "reliability_excellence", "before": before, "after": adjusted_score, "reason": "Reliability excellence boost"})
+    
+    # Additional penalty for specific anti-patterns and critical gaps
+    # Critical implementation gaps (avoid false positives from well-architected descriptions)
+    critical_gaps = [
+        "backup not configured", "no backup policy", "backup missing",
+        "disaster recovery not configured", "dr not configured",
+        "redundancy not configured", "failover not configured",
+        "encryption not enabled", "encryption disabled",
+        "monitoring not configured", "logging not enabled",
+        "single region only", "not multi-region",
+        "missing critical"
+    ]
+    critical_gap_count = sum(corpus_lower.count(gap) for gap in critical_gaps)
+    if critical_gap_count > 3:
+        critical_penalty = min(0.25, critical_gap_count / 25)  # slightly softened
+        before = adjusted_score
+        adjusted_score = int(adjusted_score * (1 - critical_penalty))
+        breakdown["steps"].append({
+            "step": "critical_gap_penalty",
+            "before": before,
+            "after": adjusted_score,
+            "critical_gap_count": critical_gap_count,
+            "penalty_fraction": round(critical_penalty, 3),
+            "reason": "Critical implementation gaps"
+        })
+    
+    # Absence penalty: scaled per missing critical concept (harsher)
+    if critical_total > 0:
+        missing_critical = critical_total - critical_found
+        if missing_critical > 0:
+            # 4 points per missing critical concept (scaled by density)
+            before = adjusted_score
+            adjusted_score = max(0, adjusted_score - int(missing_critical * 3))  # softened per-missing deduction
+            breakdown["steps"].append({
+                "step": "missing_critical_deduction",
+                "before": before,
+                "after": adjusted_score,
+                "missing_critical": missing_critical,
+                "reason": "Subtract points for missing critical concepts"
+            })
+            if (critical_found / critical_total) < 0.5:
+                before2 = adjusted_score
+                adjusted_score = int(adjusted_score * 0.70)  # soften penalty from 35% to 30%
+                print(f"[strict] {code}: <50% critical coverage -> 35% penalty applied")
+                breakdown["steps"].append({
+                    "step": "low_critical_coverage_penalty",
+                    "before": before2,
+                    "after": adjusted_score,
+                    "reason": "Low critical coverage (<50%)"
+                })
+
+    # Gating: cap score if maturity signals absent
+    max_allowed = 100
+    if coverage_pct < 50:
+        max_allowed = min(max_allowed, 70)
+    elif coverage_pct < 60:
+        max_allowed = min(max_allowed, 75)
+    if advanced_hits < 1:
+        max_allowed = min(max_allowed, 80)
+    elif advanced_hits < 2:
+        max_allowed = min(max_allowed, 85)
+    if metric_pairs < 3:
+        max_allowed = min(max_allowed, 90)
+    if impl_hits < 3:
+        max_allowed = min(max_allowed, 88)
+    # Extremely small corpus cannot exceed 75 even if mentions are many
+    if corpus_size < 800:
+        max_allowed = min(max_allowed, 75)
+    if adjusted_score > max_allowed:
+        print(f"[gating] {code}: adjusted={adjusted_score} > gate={max_allowed} (coverage={coverage_pct:.1f} adv={advanced_hits} metrics={metric_pairs} impl={impl_hits}) -> clamped")
+        before_gate = adjusted_score
+        adjusted_score = max_allowed
+        score_source = "gated"
+        breakdown["steps"].append({
+            "step": "gating_clamp",
+            "before": before_gate,
+            "after": adjusted_score,
+            "gate": max_allowed,
+            "reason": "Maturity gating clamp"
+        })
+    
+    # Ensure score stays in 0-100 range
+    overall_score = max(0, min(100, adjusted_score))
+    # Targeted excellence bonuses (small, conditional) AFTER gating
+    if overall_score >= 70 and negative_mentions == 0:
+        # Metrics & observability bonus
+        if metric_pairs >= 5 and advanced_hits >= 3:
+            boosted = min(100, overall_score + 5)
+            if boosted > overall_score:
+                print(f"[bonus] {code}: metrics+advanced observed -> +5 ({overall_score}->{boosted})")
+                overall_score = boosted
+        elif metric_pairs >= 3 and advanced_hits >= 2 and overall_score < 90:
+            boosted = min(90, overall_score + 3)
+            if boosted > overall_score:
+                print(f"[bonus] {code}: moderate metrics+advanced -> +3 ({overall_score}->{boosted})")
+                before_bonus = overall_score
+                overall_score = boosted
+                breakdown["steps"].append({
+                    "step": "moderate_excellence_bonus",
+                    "before": before_bonus,
+                    "after": overall_score,
+                    "reason": "Moderate metrics + advanced practices bonus"
+                })
+    
+    # (Confidence will be recalculated AFTER floor adjustments where score_source is set.)
+    
+    # Generate subcategories based on evidence
+    # Use slightly varied scores to reflect different aspects
+    subcats = {
+        "Design": min(100, overall_score + 5 if critical_found > critical_total // 2 else overall_score - 5),
+        "Implementation": min(100, overall_score + 3 if important_found > important_total // 2 else overall_score - 8),
+        "Operations": min(100, overall_score - 5 if nice_found > 0 else overall_score - 15),
+    }
+    
+    # Ensure subcategory scores stay in valid range
+    subcats = {k: max(0, min(100, v)) for k, v in subcats.items()}
+    # --- Floor & diagnostic adjustments ---
+    # If we produced a zero score but there is SOME evidence (concepts mentioned or decent corpus size),
+    # apply a minimal evidence floor to avoid opaque 0 which looks like a failure in UI.
+    score_source = "evidence"
+    if overall_score == 0:
+        evidence_indicator = concepts_found > 0 or corpus_size > 800 or coverage_pct > 0
+        if evidence_indicator:
+            # Coverage-based floor: 30% of coverage (capped) but at least 12
+            coverage_floor = int(max(15, min(32, coverage_pct * 0.35)))  # raised evidence floor & scaling
+            print(f"[conservative_score] {code}: applied evidence floor (raw was 0, coverage={coverage_pct:.1f}%, concepts_found={concepts_found}, corpus_size={corpus_size}) -> floor={coverage_floor}")
+            overall_score = coverage_floor
+            # Confidence should remain Low if we had originally collapsed to 0
+            confidence = "Low"
+            score_source = "floor"
+            breakdown["steps"].append({
+                "step": "evidence_floor",
+                "after": overall_score,
+                "coverage_pct": round(coverage_pct,2),
+                "reason": "Apply baseline evidence floor"
+            })
+        else:
+            print(f"[conservative_score] {code}: true zero evidence (coverage={coverage_pct:.1f}%, size={corpus_size}) -> score remains 0")
+
+    # Recalibrated confidence heuristic (placed after score_source determination)
+    # High: strong coverage (>=75%), minimal gaps (<=2), and either elevated provenance OR evidence score strong (>=55)
+    # Medium: moderate coverage (>=60%), very few gaps (<3)
+    # Low: everything else (including floor scores, poor coverage, or many gaps)
+    if score_source != "floor":  # Don't override explicit Low confidence for floor cases
+        if overall_score < 50 and score_source != "elevated":
+            confidence = "Low"
+        else:
+            if coverage_pct >= 75 and (score_source == "elevated" or overall_score >= 55) and negative_mentions <= 2:
+                confidence = "High"
+            elif coverage_pct >= 60 and negative_mentions < 3:
+                confidence = "Medium"
+            else:
+                confidence = "Low"
+
+    breakdown["final"] = {
+        "overall_score": overall_score,
+        "confidence": confidence,
+        "score_source": score_source,
+        "coverage_pct": round(coverage_pct,2),
+        "negative_mentions": negative_mentions,
+        "concepts_found": concepts_found,
+        "total_concepts": total_concepts
+    }
+    return overall_score, confidence, subcats, score_source, coverage_pct, negative_mentions, breakdown
+
+
+async def _evaluate_pillar(aid: str, code: str, name: str) -> PillarResult:
+    # Update pillar status to analyzing
+    await _update_pillar_status(aid, name, "analyzing")
+    await _update_pillar_progress(aid, name, 10)
+    
+    # Retrieve unified corpus
+    corpus: str
+    if mongo_db is not None:
+        doc = await mongo_db["assessments"].find_one({"id": aid}, {"unified_corpus": 1})
+        corpus = doc.get("unified_corpus", "") if doc else ""
+    else:
+        corpus = ASSESSMENTS.get(aid, {}).get("unified_corpus", "")
+
+    # Attempt real agent execution using migrated backend package
+    try:
+        # Import pillar agents from local app package (backend is now a package)
+        try:
+            from backend.app.agents import (
+                ReliabilityAgent,
+                SecurityAgent,
+                CostAgent,
+                OperationalAgent,
+                PerformanceAgent,
+            )
+        except ModuleNotFoundError:
+            from src.app.agents import (
+                ReliabilityAgent,
+                SecurityAgent,
+                CostAgent,
+                OperationalAgent,
+                PerformanceAgent,
+            )
+            print(f"[import] Fallback to src.app.agents for {name}")
+        agent_cls_map = {
+            "reliability": ReliabilityAgent,
+            "security": SecurityAgent,
+            "cost": CostAgent,
+            "operational": OperationalAgent,
+            "performance": PerformanceAgent,
+        }
+        AgentCls = agent_cls_map[code]
+        agent = AgentCls()
+        await _update_pillar_progress(aid, name, 30)
+        # Real agents may raise SystemExit if framework missing; catch and fallback
+        if code == "reliability":
+            assessment = await agent.assess_architecture_reliability(corpus)
+        else:
+            assessment = await agent.assess_architecture(corpus)
+        # Move intermediate progress earlier (was 70). Use 50 to indicate raw LLM assessment complete, enrichment & scoring pending.
+        await _update_pillar_progress(aid, name, 50)
+        # Normalize domain scores to subcategory map
+        print(f"[evaluate_pillar] {name}: assessment.domain_scores type={type(assessment.domain_scores)}, hasattr={hasattr(assessment, 'domain_scores')}")
+        if hasattr(assessment, 'domain_scores'):
+            print(f"[evaluate_pillar] {name}: domain_scores keys={list(assessment.domain_scores.keys())}, values sample={list(assessment.domain_scores.values())[:3]}")
+        
+        llm_subcats = {v.get("title", k): v.get("score", 0) for k, v in assessment.domain_scores.items()} if hasattr(assessment, 'domain_scores') and assessment.domain_scores else {}
+        print(f"[evaluate_pillar] {name}: Extracted {len(llm_subcats)} llm_subcats: {list(llm_subcats.keys())[:5]}")
+        
+        # Extract recommendations with enhanced details
+        recs: List[Recommendation] = []
+        raw_recs = assessment.recommendations if hasattr(assessment, 'recommendations') else []
+        print(f"[evaluate_pillar] {name}: Found {len(raw_recs)} recommendations from LLM")
+        
+        # Generate recommendations based on subcategory scores
+        generated_recs = []
+        if llm_subcats:
+            for subcat_key, subcat_score in llm_subcats.items():
+                # Only create recommendations for subcategories scoring below 80
+                if subcat_score < 80:
+                    title = f"Improve {subcat_key}"
+                    priority = "Critical" if subcat_score < 50 else "High" if subcat_score < 65 else "Medium"
+                    
+                    # Calculate effort based on gap
+                    gap = 100 - subcat_score
+                    effort = "High" if gap > 40 else "Medium" if gap > 20 else "Low"
+                    
+                    # Generate customized content using LLM with Azure documentation
+                    print(f"[GENERATE_REC] Calling LLM for {subcat_key} in {name}")
+                    llm_content = await _generate_llm_recommendation_content(subcat_key, subcat_score, name)
+                    description = llm_content["description"]
+                    recommendation = llm_content["recommendation"]
+                    # Replace earlier impact with richer LLM pass regardless of initial content
+                    impact = await _generate_rich_business_impact(subcat_key, name, priority, subcat_score, description, recommendation)
+                    
+                    print(f"[GENERATE_REC] Description length: {len(description)}, Rec length: {len(recommendation)}, Same: {description == recommendation}")
+
+                    # Refine / regenerate business impact if generic or too short
+                    def _needs_impact_refinement(text: str) -> bool:
+                        if not text:
+                            return True
+                        t = text.strip().lower()
+                        if len(t) < 40:
+                            return True
+                        import re as _re
+                        if _re.match(r'^(high|medium|low) impact on', t):
+                            return True
+                        if 'impact:' in t and 'on ' in t and len(t.split()) < 12:
+                            return True
+                        return False
+
+                    async def _refine_business_impact(subcat: str, pillar: str, why: str, how: str) -> str:
+                        if not openai_client:
+                            return _generate_business_impact(subcat, subcat_score, pillar)
+                        try:
+                            deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4")
+                            prompt = f"""You are an Azure Well-Architected Framework expert.
+Context:
+Pillar: {pillar}
+Subcategory: {subcat}
+
+WHY (architectural gap):
+{why}
+
+HOW (remediation steps):
+{how}
+
+Task: Write a BUSINESS IMPACT statement (2-3 sentences) that:
+- Quantifies consequences if unresolved AND benefits if fixed.
+- Mentions 1-2 concrete metrics (e.g., MTTR reduction, % cost avoidance, SLA improvement, breach likelihood reduction).
+- Avoids generic phrasing like 'High impact on ...'.
+- No leading labels; just the sentences.
+"""
+                            response = await openai_client.chat.completions.create(
+                                model=deployment_name,
+                                messages=[
+                                    {"role": "system", "content": "You produce crisp, business-focused impact statements with concrete metrics."},
+                                    {"role": "user", "content": prompt}
+                                ],
+                                temperature=0.5,
+                                max_tokens=220
+                            )
+                            refined = (response.choices[0].message.content or "").strip()
+                            import re as _re2
+                            refined = _re2.sub(r'(?i)^business impact[:\-\s]*', '', refined).strip()
+                            return refined
+                        except Exception as e:
+                            print(f"[REFINE_IMPACT] LLM refine failed for {subcat}: {e}")
+                            return _generate_business_impact(subcat, subcat_score, pillar)
+
+                    # Legacy refinement disabled; new rich generator supersedes.
+                    
+                    generated_recs.append({
+                        "title": title,
+                        "description": description,  # Why/what the issue is
+                        "recommendation": recommendation,  # Explicit recommended action
+                        "details": recommendation,  # Backward compatibility alias
+                        "priority": priority,
+                        "impact": impact,  # Customized business impact (text)
+                        "effort": effort,
+                        "azure_service": "",  # Not used in UI
+                        "source": _normalize_subcategory_source(subcat_key, name, llm_subcats or {}),
+                        "subcategory": subcat_key,  # Preserve original subcategory separately
+                        "business_impact": impact  # Preserve for consistency
+                    })
+        
+        # Merge LLM recommendations with generated ones
+        all_recs = list(raw_recs) + generated_recs
+
+        # Pre-enrichment pass: ensure every recommendation (raw + generated) has a rich business impact
+        import re as _re_enrich
+        def _is_generic_impact(txt: str) -> bool:
+            if not txt:
+                return True
+            t = txt.strip().lower()
+            if len(t) < 40:
+                return True
+            if _re_enrich.match(r'^(high|medium|low) impact on ', t):
+                return True
+            return False
+
+        enriched_count = 0
+        skipped_count = 0
+        for r in all_recs:
+            bi = r.get("business_impact") or r.get("impact") or ""
+            title_debug = r.get("title", "")[:50]
+            # Safe preview: impact may be numeric or non-string; coerce before slicing
+            if isinstance(bi, (int, float)):
+                bi_preview = str(bi)
+            elif isinstance(bi, str):
+                bi_preview = bi
+            else:
+                bi_preview = str(bi) if bi is not None else ""
+            bi_preview = bi_preview[:60]
+            print(f"[ENRICH_IMPACT] Checking '{title_debug}': bi={bi_preview if bi_preview else 'NONE'}, is_generic={_is_generic_impact(str(bi))}")
+            if _is_generic_impact(str(bi)):
+                # Gather minimal context
+                desc_ctx = r.get("description") or r.get("reasoning") or r.get("narrative") or ""
+                rec_ctx = r.get("recommendation") or r.get("details") or r.get("implementation") or ""
+                subcat_ctx = r.get("subcategory") or r.get("source") or r.get("title", "")
+                priority_ctx = r.get("priority", "Medium")
+                score_ctx = llm_subcats.get(subcat_ctx, 50) if llm_subcats else 50
+                try:
+                    rich_bi = await _generate_rich_business_impact(subcat_ctx, name, priority_ctx, score_ctx, desc_ctx, rec_ctx)
+                    if rich_bi and not _is_generic_impact(rich_bi):
+                        r["business_impact"] = rich_bi
+                        r["impact"] = rich_bi
+                        enriched_count += 1
+                        print(f"[ENRICH_IMPACT] Updated impact for '{subcat_ctx[:45]}' -> {rich_bi[:90]}")
+                    else:
+                        print(f"[ENRICH_IMPACT] LLM returned generic for '{subcat_ctx[:45]}': {rich_bi[:90] if rich_bi else 'NONE'}")
+                except Exception as e:
+                    print(f"[ENRICH_IMPACT] Failed enrichment for '{subcat_ctx}': {e}")
+            else:
+                skipped_count += 1
+                print(f"[ENRICH_IMPACT] Skipped (already enriched): '{title_debug}'")
+        print(f"[ENRICH_IMPACT] Completed pass: enriched={enriched_count}, skipped={skipped_count}, total={len(all_recs)} recommendations")
+        
+        def _best_subcategory_match(title_text: str, subcats: Dict[str, int]):
+            if not subcats:
+                return None
+            import re
+            tokens = set(re.findall(r"[A-Za-z]+", title_text.lower()))
+            best = None
+            best_score = 0
+            for sc in subcats.keys():
+                sc_tokens = set(re.findall(r"[A-Za-z]+", sc.lower()))
+                score = len(tokens & sc_tokens)
+                if score > best_score:
+                    best_score = score
+                    best = sc
+            return best if best_score > 0 else None
+
+        for r in all_recs[:10]:  # Limit to 10 total recommendations
+            # Enhanced recommendation extraction with better field mapping
+            raw_title = r.get("title", r.get("recommendation", "Improvement Recommendation"))
+            title = str(raw_title) if not isinstance(raw_title, str) else raw_title
+            raw_description = r.get("description", r.get("reasoning", r.get("narrative", "")))
+            description = str(raw_description) if not isinstance(raw_description, str) else raw_description
+            raw_recommendation_text = r.get("recommendation", r.get("details", r.get("implementation", "")))
+            recommendation_text = str(raw_recommendation_text) if not isinstance(raw_recommendation_text, str) else raw_recommendation_text
+            details = recommendation_text  # keep alias identical
+            priority = r.get("priority", r.get("severity", "Medium"))
+            # Impact selection strategy: PRESERVE pre-enriched business_impact if present
+            import re as _re_generic
+            def _is_generic_phrase(txt: Any) -> bool:
+                if txt is None:
+                    return True
+                if not isinstance(txt, str):
+                    txt = str(txt)
+                t = txt.strip().lower()
+                return bool(_re_generic.match(r"^(high|medium|low) impact on ", t)) or len(t) < 40
+
+            # Check if pre-enrichment pass already set a good business_impact
+            pre_enriched_bi = r.get("business_impact")
+            alt_impact = r.get("impact")
+            print(f"[EXTRACT_REC] Title: {title[:50]}, bi='{str(pre_enriched_bi)[:70] if pre_enriched_bi else 'NONE'}', impact='{str(alt_impact)[:70] if alt_impact else 'NONE'}'")
+            if pre_enriched_bi and not _is_generic_phrase(str(pre_enriched_bi)):
+                # Use the enriched version directly - don't process further
+                impact = str(pre_enriched_bi)
+                print(f"[EXTRACT_REC] Title: {title[:50]}, Using PRE-ENRICHED impact: {impact[:90]}")
+            else:
+                # Fallback path: derive from impact/impact_score fields
+                impact_text_candidate = r.get("impact")
+                impact_score_val = None
+                if isinstance(impact_text_candidate, (int, float)):
+                    impact_score_val = int(impact_text_candidate)
+                    impact_text_candidate = ""
+                # separate stored numeric score
+                if impact_score_val is None and isinstance(r.get("impact_score"), (int, float)):
+                    impact_score_val = int(r.get("impact_score"))
+                
+                impact_raw = impact_text_candidate.strip() if isinstance(impact_text_candidate, str) else ""
+                print(f"[EXTRACT_REC] Title: {title[:50]}, Desc len: {len(description)}, Rec len: {len(recommendation_text)}, NO enriched impact, impact_raw_len={len(impact_raw)}, impact_score={impact_score_val}")
+
+            # --- Robust recommendation fallback ---
+            if not recommendation_text or not str(recommendation_text).strip():
+                if description and str(description).strip():
+                    recommendation_text = description
+                else:
+                    subcat_for_template = r.get("subcategory") or r.get("source") or title.replace("Improve ", "")
+                    recommendation_text = _generate_recommendation(subcat_for_template, name)
+                print(f"[EXTRACT_REC] [FALLBACK_REC] Fallback recommendation for '{title[:45]}' len={len(recommendation_text)}")
+
+            # Ensure description available for reasoning (UI merges into recommendation anyway)
+            if (not description or not str(description).strip()) and recommendation_text:
+                description = recommendation_text
+                print(f"[EXTRACT_REC] [FILL_DESC] Description filled from recommendation for '{title[:45]}'")
+            
+                # Determine final impact (textual). Prefer non-generic enriched/text before numeric fallback.
+                if impact_raw and not _is_generic_phrase(impact_raw):
+                    impact = impact_raw
+                elif impact_raw and _is_generic_phrase(impact_raw):
+                    # attempt second-pass refinement only if generic
+                    import re as _re3
+                    if _re3.match(r'(?i)^(high|medium|low) impact on ', impact_raw.strip()):
+                        print(f"[REFINE_IMPACT_PASS2] Detected generic impact for {title[:40]} -> refining")
+                        async def _refine_again(text_desc: str, text_rec: str, existing: str) -> str:
+                            if not openai_client:
+                                return existing
+                            try:
+                                deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4")
+                                prompt = f"""Refine the following business impact statement to be specific and metric-driven.
+Pillar: {name}
+Subcategory Source: {source if 'source' in locals() else ''}
+Gap Description: {text_desc[:400]}
+Remediation Steps: {text_rec[:400]}
+Current Impact: {existing}
+
+Produce 2 concise sentences using at least one quantitative indicator (e.g., % reduction, minutes of MTTR improvement, cost avoidance estimate). No preamble label."""
+                                response = await openai_client.chat.completions.create(
+                                    model=deployment_name,
+                                    messages=[
+                                        {"role": "system", "content": "You refine business impact into metric-driven actionable consequence/benefit statements."},
+                                        {"role": "user", "content": prompt}
+                                    ],
+                                    temperature=0.4,
+                                    max_tokens=180
+                                )
+                                refined2 = (response.choices[0].message.content or '').strip()
+                                return refined2
+                            except Exception as e:
+                                print(f"[REFINE_IMPACT_PASS2] LLM failed: {e}")
+                                return existing
+                        try:
+                            impact = await _refine_again(description, recommendation_text, impact_raw)
+                            print(f"[REFINE_IMPACT_PASS2] New impact: {impact[:120]}")
+                        except Exception as e:
+                            print(f"[REFINE_IMPACT_PASS2] Unexpected error: {e}")
+                    else:
+                        impact = impact_raw  # keep short/generic if pattern not matched
+                elif impact_score_val is not None:
+                    qualifier = "High" if impact_score_val >= 7 else "Medium" if impact_score_val >= 4 else "Low"
+                    impact = f"{qualifier} impact on {name.lower()} (Impact: {impact_score_val}/10)"
+                else:
+                    impact = "Medium impact (unspecified)"
+            effort = r.get("effort", r.get("complexity", "Medium"))
+            azure_service = r.get("azure_service", r.get("service", _suggest_service(code)))
+            # Prefer explicit source/subcategory; derive from title and token overlap if not present
+            raw_source = (
+                r.get("source")
+                or r.get("subcategory")
+                or (title.replace("Improve ", "") if title.startswith("Improve ") else None)
+                or _best_subcategory_match(title, llm_subcats)
+                or "General Assessment"
+            )
+            source = _normalize_subcategory_source(raw_source, name, llm_subcats or {})
+            
+            # Map numeric priority to text
+            if isinstance(priority, (int, float)):
+                priority = "Critical" if priority <= 2 else "High" if priority <= 3 else "Medium" if priority <= 4 else "Low"
+            
+            # If we have a numeric score and no text, construct contextual statement
+            if isinstance(impact, (int, float)):
+                impact_score = int(impact)
+                qualifier = "High" if impact_score >= 7 else "Medium" if impact_score >= 4 else "Low"
+                impact = f"{qualifier} impact on {name.lower()} (Impact: {impact_score}/10)"
+            else:
+                # Second-pass refinement if still generic
+                import re as _re3
+                if _re3.match(r'(?i)^(high|medium|low) impact on ', impact.strip()):
+                    print(f"[REFINE_IMPACT_PASS2] Detected generic impact for {title[:40]} -> refining")
+                    async def _refine_again(text_desc: str, text_rec: str, existing: str) -> str:
+                        if not openai_client:
+                            return existing
+                        try:
+                            deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4")
+                            prompt = f"""Refine the following business impact statement to be specific and metric-driven.
+Pillar: {name}
+Subcategory Source: {source}
+Gap Description: {text_desc[:400]}
+Remediation Steps: {text_rec[:400]}
+Current Impact: {existing}
+
+Produce 2 concise sentences using at least one quantitative indicator (e.g., % reduction, minutes of MTTR improvement, cost avoidance estimate). No preamble label."""
+                            response = await openai_client.chat.completions.create(
+                                model=deployment_name,
+                                messages=[
+                                    {"role": "system", "content": "You refine business impact into metric-driven actionable consequence/benefit statements."},
+                                    {"role": "user", "content": prompt}
+                                ],
+                                temperature=0.4,
+                                max_tokens=180
+                            )
+                            refined2 = (response.choices[0].message.content or '').strip()
+                            return refined2
+                        except Exception as e:
+                            print(f"[REFINE_IMPACT_PASS2] LLM failed: {e}")
+                            return existing
+                    try:
+                        impact = await _refine_again(description, recommendation_text, impact)
+                        print(f"[REFINE_IMPACT_PASS2] New impact: {impact[:120]}")
+                    except Exception as e:
+                        print(f"[REFINE_IMPACT_PASS2] Unexpected error: {e}")
+            
+            print(f"[CREATE_PYDANTIC] Creating Recommendation: reasoning={len(str(description))}, recommendation={len(str(recommendation_text))}, details={len(str(details))}")
+            recs.append(
+                Recommendation(
+                    pillar=name,
+                    title=title,
+                    reasoning=description[:500],
+                    recommendation=recommendation_text[:1000],
+                    details=recommendation_text[:1000],
+                    priority=str(priority),
+                    impact=str(impact),  # legacy field
+                    business_impact=str(impact),  # always mirror final textual impact (enriched if successful)
+                    effort=str(effort),
+                    azure_service=str(azure_service),
+                    source=str(source),
+                )
+            )
+        
+        print(f"[evaluate_pillar] {name}: Extracted {len(recs)} recommendations")
+        await agent.cleanup()
+        
+        # ALWAYS use evidence-based scoring and confidence - ignore LLM scores
+        # LLM agents are too optimistic and don't properly penalize missing implementations
+        evidence_score, confidence, evidence_subcats, score_source, coverage_pct, negative_mentions, breakdown = _calculate_conservative_score(corpus, code, name)
+        
+        # Use LLM's detailed subcategory names but scale them to match evidence score
+        # This preserves the detailed breakdown while applying conservative scoring
+        print(f"[evaluate_pillar] {name}: LLM provided {len(llm_subcats)} subcategories, overall_score={assessment.overall_score}")
+        initial_scale_factor = None
+        if llm_subcats and len(llm_subcats) > 0:
+            if assessment.overall_score and assessment.overall_score > 0:
+                initial_scale_factor = evidence_score / assessment.overall_score
+                final_subcats = {k: max(0, min(100, int(v * initial_scale_factor))) for k, v in llm_subcats.items()}
+                print(f"[evaluate_pillar] {name}: Using {len(final_subcats)} scaled LLM subcategories (scale_factor_initial={initial_scale_factor:.3f})")
+            else:
+                total_subcat_score = sum(llm_subcats.values())
+                if total_subcat_score > 0:
+                    final_subcats = {k: max(0, min(100, int((v / total_subcat_score) * evidence_score))) for k, v in llm_subcats.items()}
+                    print(f"[evaluate_pillar] {name}: LLM overall=0; scaled by relative weights to evidence={evidence_score}")
+                else:
+                    avg_score = int(evidence_score / max(1, len(llm_subcats)))
+                    final_subcats = {k: avg_score for k in llm_subcats.keys()}
+                    print(f"[evaluate_pillar] {name}: LLM overall=0 and all zeros; even distribution={avg_score}")
+            # Normalize sum to evidence_score
+            current_sum = sum(final_subcats.values())
+            if current_sum != evidence_score and current_sum > 0:
+                adjust_factor = evidence_score / current_sum
+                final_subcats = {k: int(v * adjust_factor) for k, v in final_subcats.items()}
+                new_sum = sum(final_subcats.values())
+                if new_sum != evidence_score:
+                    diff = evidence_score - new_sum
+                    largest_key = max(final_subcats.keys(), key=lambda k: final_subcats[k])
+                    final_subcats[largest_key] = max(0, final_subcats[largest_key] + diff)
+                print(f"[evaluate_pillar] {name}: Normalized subcats to evidence_score={evidence_score}")
+        else:
+            # Use evidence-based generic subcategories if LLM didn't provide detailed ones
+            # Provide canonical pillar-specific subcategories for better UI clarity
+            canonical_subcats_map = {
+                "Reliability": ["Backup Strategy", "Disaster Recovery", "High Availability", "Monitoring", "Testing"],
+                "Security": ["Identity Management", "Network Security", "Data Protection", "Threat Detection"],
+                "Cost Optimization": ["Resource Optimization", "Monitoring", "Reserved Capacity"],
+                "Operational Excellence": ["Automation", "Monitoring", "Documentation", "Testing"],
+                "Performance Efficiency": ["Scalability", "Resource Selection", "Monitoring", "Optimization"],
+            }
+            canonical_keys = canonical_subcats_map.get(name, list(evidence_subcats.keys()))
+            if evidence_score > 0:
+                # Distribute evidence score across canonical subcategories proportionally (even distribution)
+                base = max(1, int(evidence_score / max(1, len(canonical_keys))))
+                final_subcats = {k: base for k in canonical_keys}
+                # Adjust for rounding difference
+                diff = evidence_score - sum(final_subcats.values())
+                if diff != 0:
+                    largest_key = canonical_keys[0]
+                    final_subcats[largest_key] = max(0, final_subcats[largest_key] + diff)
+            else:
+                # True zero evidence: assign minimal floor (12) per subcategory for visibility rather than opaque 0
+                final_subcats = {k: 12 for k in canonical_keys}
+                print(f"[evaluate_pillar] {name}: True zero evidence; assigning minimal visibility floor to canonical subcategories")
+                # Also elevate overall evidence_score to minimal floor so UI reflects presence
+                evidence_score = 12
+            print(f"[evaluate_pillar] [WARN] {name}: No LLM subcategories, using canonical breakdown ({len(final_subcats)} items)")
+        
+        # --- Optional elevation logic ---
+        # Allow modest uplift (max +15) if LLM overall score indicates higher maturity than raw evidence
+        # Preconditions:
+        #  - evidence_score >= 40 (avoid elevating very weak evidence)
+        #  - LLM overall > evidence_score by at least 20% OR absolute delta >= 12
+        #  - No floor-based score_source (don't elevate synthetic floors)
+        elevated_score = evidence_score
+        if score_source != "floor" and assessment.overall_score and assessment.overall_score > 0:
+            llm_overall = int(assessment.overall_score)
+            delta = llm_overall - evidence_score
+            meets_relative_gap = llm_overall > evidence_score * 1.20
+            meets_absolute_gap = delta >= 12
+            if evidence_score >= 40 and (meets_relative_gap or meets_absolute_gap):
+                # Compute uplift: 40% of delta capped at 15 and ensuring we never exceed LLM overall
+                uplift = min(15, int(delta * 0.4))
+                target = min(llm_overall, evidence_score + uplift)
+                if target > evidence_score:
+                    elevated_score = target
+                    score_source = "elevated"
+                    print(f"[elevation] {name}: evidence={evidence_score}, llm={llm_overall}, delta={delta} -> uplift={uplift}, final={elevated_score}")
+                else:
+                    print(f"[elevation] {name}: conditions met but uplift produced no improvement (target <= evidence)")
+            else:
+                print(f"[elevation] {name}: no elevation (evidence={evidence_score}, llm={llm_overall}, delta={delta}, rel_gap={meets_relative_gap}, abs_gap={meets_absolute_gap})")
+        else:
+            if score_source == "floor":
+                print(f"[elevation] {name}: skipping elevation (score from floor logic)")
+            else:
+                print(f"[elevation] {name}: insufficient LLM score for elevation (llm={assessment.overall_score})")
+
+        print(f"[evaluate_pillar] [OK] {name}: LLM score={assessment.overall_score}, Evidence score={evidence_score}, Final score={elevated_score}, Confidence={confidence}, source={score_source}")
+        # A: Recompute subcategories after elevation so they sum to final score
+        pre_elev_sum = sum(final_subcats.values()) if final_subcats else 0
+        final_scale_factor = None
+        if elevated_score != evidence_score and pre_elev_sum > 0:
+            final_scale_factor = elevated_score / pre_elev_sum
+            final_subcats = {k: max(0, min(100, int(v * final_scale_factor))) for k, v in final_subcats.items()}
+            new_sum = sum(final_subcats.values())
+            if new_sum != elevated_score:
+                diff = elevated_score - new_sum
+                largest_key = max(final_subcats.keys(), key=lambda k: final_subcats[k])
+                final_subcats[largest_key] = max(0, min(100, final_subcats[largest_key] + diff))
+            print(f"[evaluate_pillar] {name}: Re-scaled subcategories post elevation (scale_factor_final={final_scale_factor:.3f})")
+        post_elev_sum = sum(final_subcats.values()) if final_subcats else 0
+        # New intermediate progress milestone after conservative scoring & elevation logic completes
+        await _update_pillar_progress(aid, name, 80)
+        
+        # Update pillar status to completed
+        await _update_pillar_progress(aid, name, 100)
+        await _update_pillar_status(aid, name, "completed")
+
+        # Fallback: if no recommendations were produced (recs empty), generate baseline ones for each low-scoring subcategory
+        if len(recs) == 0 and final_subcats:
+            print(f"[evaluate_pillar] {name}: Generating baseline recommendations for canonical subcategories")
+            for subcat_key, subcat_score in final_subcats.items():
+                if subcat_score < 80:  # Same threshold logic
+                    priority = "Critical" if subcat_score < 50 else "High" if subcat_score < 65 else "Medium"
+                    gap = 100 - subcat_score
+                    effort = "High" if gap > 40 else "Medium" if gap > 20 else "Low"
+                    description = _generate_description(subcat_key, subcat_score, name)
+                    recommendation_text = _generate_recommendation(subcat_key, name)
+                    impact_text = _generate_business_impact(subcat_key, subcat_score, name)
+                    recs.append(
+                        Recommendation(
+                            pillar=name,
+                            title=f"Improve {subcat_key}",
+                            reasoning=description[:500],
+                            recommendation=recommendation_text[:1000],
+                            details=recommendation_text[:1000],
+                            priority=priority,
+                            impact=impact_text,
+                            business_impact=impact_text,
+                            effort=effort,
+                            azure_service="",
+                            source=_normalize_subcategory_source(subcat_key, name, final_subcats or {}),
+                        )
+                    )
+            print(f"[evaluate_pillar] {name}: Added {len(recs)} baseline recommendations")
+        
+        # Use evidence-based scores for all results
+        scoring_explanation = {
+            "evidence_score": evidence_score,
+            "pre_elevation_score": evidence_score,
+            "final_score": elevated_score,
+            "elevation_uplift": elevated_score - evidence_score,
+            "scale_factor_initial": initial_scale_factor,
+            "scale_factor_final": final_scale_factor,
+            "subcategories_sum_before": pre_elev_sum,
+            "subcategories_sum_final": post_elev_sum,
+            "score_source": score_source,
+        }
+        # --- UI-friendly simple explanation generation ---
+        coverage_band = (
+            "limited" if coverage_pct < 40 else
+            "moderate" if coverage_pct < 60 else
+            "strong" if coverage_pct < 75 else
+            "comprehensive"
+        )
+        if negative_mentions == 0:
+            gaps_assessment = "no critical gaps detected"
+        elif negative_mentions <= 3:
+            gaps_assessment = "some gaps noted"
+        elif negative_mentions <= 8:
+            gaps_assessment = "several gaps need attention"
+        else:
+            gaps_assessment = "numerous gaps significantly reduce maturity"
+        # Select up to 3 lowest subcategories under 80
+        focus_candidates = sorted((final_subcats or {}).items(), key=lambda kv: kv[1])
+        focus_areas = [k for k, v in focus_candidates if v < 80][:3]
+        # Key drivers list
+        drivers: List[Dict[str, str]] = []
+        drivers.append({"factor": "coverage", "impact": f"{coverage_band} ({coverage_pct:.1f}% of key concepts)"})
+        if negative_mentions:
+            drivers.append({"factor": "gaps", "impact": f"{negative_mentions} implementation gap(s)"})
+        if score_source == "elevated":
+            drivers.append({"factor": "llm_alignment", "impact": f"elevated +{elevated_score - evidence_score} points"})
+        elif score_source == "floor":
+            drivers.append({"factor": "evidence_floor", "impact": "baseline applied due to partial evidence"})
+        # Always include confidence rationale
+        drivers.append({"factor": "confidence", "impact": confidence.lower()})
+        summary_text = (
+            f"{name} scored {elevated_score}/100 with {confidence.lower()} confidence: "
+            f"{coverage_band} coverage and {gaps_assessment}."
+        )
+        simple_explanation = {
+            "summary": summary_text,
+            "drivers": drivers,
+            "coverage_band": coverage_band,
+            "gaps_assessment": gaps_assessment,
+            "focus_areas": focus_areas,
+            "confidence": confidence,
+            "score_source": score_source,
+            "metrics": {
+                "score": elevated_score,
+                "coverage_pct": round(coverage_pct, 2),
+                "negative_mentions": negative_mentions
+            }
+        }
+        # --- Build subcategory details for transparent concept coverage ---
+        # Helper: attribute concepts uniquely to best matching subcategory by token overlap
+        import re as _re_attr
+        def _tokenize(t: str) -> set:
+            return set(_re_attr.findall(r"[A-Za-z]+", t.lower()))
+        all_subcat_tokens = {sc: _tokenize(sc) for sc in (final_subcats or {})}
+        # Gather flattened concept lists
+        raw_sum = sum(final_subcats.values()) if final_subcats else 0
+        normalization_applied = raw_sum > 100 and elevated_score <= 100 and raw_sum != elevated_score
+        normalization_factor = None
+        if normalization_applied and raw_sum > 0:
+            normalization_factor = elevated_score / raw_sum
+
+        # Extract concept provenance from breakdown
+        concepts_section = (breakdown or {}).get("concepts", {})
+        concept_found_list: List[str] = []
+        concept_missing_list: List[str] = []
+        for tier, data in concepts_section.items():
+            if isinstance(data, dict):
+                concept_found_list.extend(data.get("found", []) or [])
+                concept_missing_list.extend(data.get("missing", []) or [])
+
+        def _attribute(concepts: List[str]) -> Dict[str, List[str]]:
+            assigned: Dict[str, List[str]] = {sc: [] for sc in all_subcat_tokens}
+            for c in concepts:
+                ctoks = _tokenize(c)
+                best_sc = None
+                best_overlap = 0
+                for sc, toks in all_subcat_tokens.items():
+                    overlap = len(ctoks & toks)
+                    if overlap > best_overlap:
+                        best_overlap = overlap
+                        best_sc = sc
+                if best_sc:
+                    assigned[best_sc].append(c)
+                else:
+                    # If no overlap, assign to largest scoring subcategory for visibility
+                    if final_subcats:
+                        largest = max(final_subcats.keys(), key=lambda k: final_subcats[k])
+                        assigned[largest].append(c)
+            return assigned
+
+        found_by_subcat = _attribute(concept_found_list)
+        missing_by_subcat = _attribute(concept_missing_list)
+        # Load curated expected concepts catalog (if enabled and available for this pillar)
+        curated_expected_map: Dict[str, List[str]] = {}
+        if USE_CURATED_EXPECTED_CONCEPTS:
+            curated_loaded = load_expected_concepts(name)
+            if curated_loaded:
+                curated_expected_map = curated_loaded
+        # Helper: fuzzy map subcategory names to curated keys by token overlap
+        import re as _re_cur
+        def _tok_cur(s: str) -> set:
+            return set(_re_cur.findall(r"[A-Za-z]+", s.lower()))
+        curated_tokens = {k: _tok_cur(k) for k in curated_expected_map}
+        def _best_curated(subcat_name: str) -> Optional[List[str]]:
+            if subcat_name in curated_expected_map:
+                return curated_expected_map[subcat_name]
+            stoks = _tok_cur(subcat_name)
+            best = None
+            best_overlap = 0
+            for ck, ctoks in curated_tokens.items():
+                overlap = len(stoks & ctoks)
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    best = ck
+            if best and best_overlap > 0:
+                return curated_expected_map.get(best)
+            # Explicit alias fallback for reliability pillar variant headings
+            alias_map = {
+                "reliability-focused design foundations": "Simplicity & Efficiency",
+                "identify and rate user and system flows": "Flow Identification & Criticality",
+                "identify user flows": "Flow Identification & Criticality",
+                "perform failure mode analysis": "Failure Mode Analysis",
+                "perform failure mode analysis (fma)": "Failure Mode Analysis",
+                "failure mode analysis": "Failure Mode Analysis",
+                "define reliability and recovery targets": "Reliability & Recovery Targets",
+                "reliability targets": "Reliability & Recovery Targets",
+                "recovery targets": "Reliability & Recovery Targets",
+                "implement redundancy": "Redundancy",
+                "add redundancy at different levels": "Redundancy",
+                "redundancy": "Redundancy",
+                "establish scaling strategy": "Scaling Strategy",
+                "implement a timely and reliable scaling strategy": "Scaling Strategy",
+                "scaling strategy": "Scaling Strategy",
+                "apply self-healing and resilience patterns": "Self-Healing & Resilience Patterns",
+                "strengthen resiliency with self-preservation and self-healing": "Self-Healing & Resilience Patterns",
+                "self-healing": "Self-Healing & Resilience Patterns",
+                "resilience": "Self-Healing & Resilience Patterns",
+                "conduct resiliency and chaos testing": "Resiliency & Chaos Testing",
+                "test for resiliency and availability scenarios": "Resiliency & Chaos Testing",
+                "resiliency testing": "Resiliency & Chaos Testing",
+                "chaos testing": "Resiliency & Chaos Testing",
+                "establish bcdr planning": "BCDR Planning",
+                "implement structured, tested, and documented bcdr plans": "BCDR Planning",
+                "bcdr": "BCDR Planning",
+                "disaster recovery": "BCDR Planning",
+                "implement health indicators and monitoring": "Health Indicators & Monitoring",
+                "measure and model the solution's health indicators": "Health Indicators & Monitoring",
+                "health indicators": "Health Indicators & Monitoring",
+                "health check": "Health Indicators & Monitoring",
+            }
+            lowered = subcat_name.lower()
+            for k,v in alias_map.items():
+                if k in lowered and v in curated_expected_map:
+                    return curated_expected_map[v]
+            return None
+
+        # Helper: Generate generic expected concepts from subcategory name when no curated catalog exists
+        def _generate_generic_expected(subcat_name: str) -> List[str]:
+            """Extract meaningful concepts from subcategory name as fallback."""
+            import re
+            # Extract key terms from subcategory name
+            words = re.findall(r'[A-Z][a-z]+|[a-z]+', subcat_name)
+            # Filter out common stop words
+            stop_words = {'and', 'the', 'a', 'an', 'or', 'with', 'for', 'to', 'in', 'on', 'at', 'from', 'improve', 'implement', 'establish', 'create', 'define', 'maintain', 'enhance', 'optimize', 'develop', 'ensure'}
+            concepts = [w.lower() for w in words if w.lower() not in stop_words and len(w) > 2]
+            # Add some domain-specific expansions
+            expansions = []
+            for concept in concepts:
+                if concept in ['cost', 'costs']:
+                    expansions.extend(['budget', 'spending', 'optimization', 'savings'])
+                elif concept in ['security', 'secure']:
+                    expansions.extend(['encryption', 'authentication', 'authorization', 'compliance'])
+                elif concept in ['performance', 'efficient', 'efficiency']:
+                    expansions.extend(['latency', 'throughput', 'optimization', 'caching'])
+                elif concept in ['operational', 'operations']:
+                    expansions.extend(['monitoring', 'automation', 'deployment', 'maintenance'])
+                elif concept in ['data']:
+                    expansions.extend(['storage', 'backup', 'retention', 'classification'])
+                elif concept in ['testing', 'test']:
+                    expansions.extend(['validation', 'qa', 'regression', 'automation'])
+            # Combine and deduplicate
+            all_concepts = list(dict.fromkeys(concepts + expansions[:5]))  # Limit expansions
+            return all_concepts[:8] if all_concepts else ['best practices', 'documentation', 'standards']
+
+        # Helper to attribute concepts to subcategories via token overlap
+        import re as _re_tokens
+        def _tokens(s: str) -> set:
+            return set(_re_tokens.findall(r"[A-Za-z]+", s.lower()))
+
+        subcat_details: Dict[str, SubcategoryDetail] = {}
+        all_found = concept_found_list
+        all_missing = concept_missing_list
+        total_expected = len(concept_found_list) + len(concept_missing_list)
+        max_coverage_penalty = 18
+        max_gap_penalty = 20
+        for subcat, score_val in (final_subcats or {}).items():
+            matched_found = found_by_subcat.get(subcat, [])
+            matched_missing = missing_by_subcat.get(subcat, [])
+            # Per-subcategory expected concepts scope (found + missing assigned to this subcat)
+            expected_scoped = list(dict.fromkeys(matched_found + matched_missing))
+            # Curated full expected concept list (try curated first, then scoped)
+            curated_concepts = _best_curated(subcat)
+            expected_full = curated_concepts or expected_scoped
+            # Ensure any detected evidence concepts (found + missing) are included in expected list for subset assertion
+            if expected_full and not set(matched_found + matched_missing).issubset(set(expected_full)):
+                expected_full = list(dict.fromkeys(expected_full + matched_found + matched_missing))
+            # Critical: When Found is empty, ensure Missing shows what's expected
+            if not matched_found and not matched_missing:
+                # If we have curated concepts, use them; otherwise generate generic concepts from name
+                if curated_concepts:
+                    matched_missing = curated_concepts
+                    expected_full = curated_concepts
+                else:
+                    # Fallback: generate generic expected concepts from subcategory name
+                    generic_concepts = _generate_generic_expected(subcat)
+                    matched_missing = generic_concepts
+                    expected_full = generic_concepts
+            elif not matched_found and expected_full and not matched_missing:
+                # Found=0, expected exists, but missing is empty -> populate missing with expected
+                matched_missing = expected_full
+            # Calculate coverage penalty: if both found and missing are empty, apply maximum penalty
+            if not matched_found and not matched_missing:
+                # No evidence at all -> maximum coverage penalty
+                missing_ratio = 1.0
+                coverage_penalty = max_coverage_penalty
+            elif matched_found or matched_missing:
+                missing_ratio = len(matched_missing) / max(1, (len(matched_found) + len(matched_missing)))
+                coverage_penalty = int(missing_ratio * max_coverage_penalty)
+            else:
+                missing_ratio = 0
+                coverage_penalty = 0
+            pillar_missing_total = sum(len(v) for v in missing_by_subcat.values()) or 1
+            share = len(matched_missing) / pillar_missing_total
+            gap_penalty = int(share * (negative_mentions or 0) * (max_gap_penalty / 10)) if negative_mentions else 0
+            gap_penalty = min(max_gap_penalty, gap_penalty)
+            base_score = score_val
+            adjusted_score = max(0, base_score - coverage_penalty - gap_penalty)
+            if normalization_factor:
+                adjusted_score = int(adjusted_score * normalization_factor)
+            if not matched_found:  # Apply evidence floor
+                adjusted_score = min(adjusted_score, NO_EVIDENCE_SUBCATEGORY_FLOOR)
+            justification = (
+                f"Base {base_score} → {adjusted_score} after penalties; found {len(matched_found)} / "
+                f"{len(matched_found)+len(matched_missing)} concepts ({', '.join(matched_found) or 'none'}); missing {len(matched_missing)}"
+                + (f" ({', '.join(matched_missing)})" if matched_missing else "")
+                + f". Penalties: coverage={coverage_penalty}, gaps={gap_penalty}."
+            )
+            subcat_details[subcat] = SubcategoryDetail(
+                name=subcat,
+                base_score=base_score,
+                coverage_penalty=coverage_penalty,
+                gap_penalty=gap_penalty,
+                final_score=adjusted_score,
+                confidence=confidence,
+                evidence_found=matched_found,
+                missing_concepts=matched_missing,
+                gaps_detected=[] if negative_mentions in (None, 0) else [f"{negative_mentions} pillar-level gap(s)"] ,
+                normalization_factor=normalization_factor,
+                prompt_concepts=expected_full,
+                found_concepts=matched_found,
+                justification_text=justification,
+                human_summary=(
+                    f"{subcat} shows solid coverage of {len(matched_found)} concept(s)" if matched_found and not matched_missing else
+                    (f"Partial coverage: {len(matched_found)}/{len(matched_found)+len(matched_missing)} concept(s); missing "
+                     f"{', '.join(matched_missing[:5])}{'...' if len(matched_missing) > 5 else ''}" if matched_found and matched_missing else
+                     f"No substantive evidence detected; expected concept(s) not found: {', '.join(matched_missing[:5])}{'...' if len(matched_missing) > 5 else ''}")
+                ),
+                expected_concepts=expected_full,
+                substantiated=bool(matched_found),
+            )
+
+        # Optional gap-based recommendations when normalization applied
+        gap_based_recs: List[Recommendation] = []
+        if normalization_applied:
+            for sc_name, detail in subcat_details.items():
+                if detail.missing_concepts:
+                    rec_title = f"Address gaps in {sc_name}"
+                    rec_reasoning = (
+                        f"Missing concepts ({', '.join(detail.missing_concepts)}) reduced {sc_name} maturity; "
+                        f"improving coverage will raise reliability of the overall {name} pillar."
+                    )
+                    points_recoverable = detail.coverage_penalty + detail.gap_penalty
+                    gap_based_recs.append(
+                        Recommendation(
+                            pillar=name,
+                            title=rec_title,
+                            reasoning=rec_reasoning[:500],
+                            recommendation=f"Implement/Document: {', '.join(detail.missing_concepts)} to close identified gaps.",
+                            details=f"Implement/Document: {', '.join(detail.missing_concepts)}",
+                            priority="High" if points_recoverable > 10 else "Medium",
+                            impact=f"Recover up to {points_recoverable} points in {name} pillar maturity.",
+                            business_impact=f"Recover up to {points_recoverable} points in {name} pillar maturity.",
+                            effort="Medium",
+                            azure_service="",
+                            source=_normalize_subcategory_source(sc_name, name, final_subcats or {}),
+                        )
+                    )
+
+        # Targeted recommendations for zero-evidence subcategories (always on, dedup against existing)
+        for sc_name, detail in subcat_details.items():
+            if detail.evidence_found:
+                continue
+            if any(r.source == sc_name for r in recs):
+                continue
+            missing_str = ', '.join(detail.missing_concepts[:5]) if detail.missing_concepts else 'core practices'
+            recs.append(
+                Recommendation(
+                    pillar=name,
+                    title=f"Establish foundational evidence for {sc_name}",
+                    reasoning=(
+                        f"No concepts detected for {sc_name}; documentation and implementation signals are absent. Prioritize introducing or documenting: {missing_str}."
+                    )[:500],
+                    recommendation=f"Introduce and document: {missing_str}. Update architecture docs and implementation to surface these concepts explicitly.",
+                    details=f"Introduce/document: {missing_str}",
+                    priority="High",
+                    impact=f"Unlocks maturity scoring for {sc_name} and improves baseline of {name} pillar.",
+                    business_impact=f"Reduces risk by addressing absent {sc_name} fundamentals and enabling future optimization.",
+                    effort="Medium",
+                    azure_service="",
+                    source=_normalize_subcategory_source(sc_name, name, final_subcats or {}),
+                )
+            )
+        return PillarResult(
+            pillar=name,
+            overall_score=elevated_score,
+            subcategories=final_subcats,
+            recommendations=recs,
+            confidence=confidence,
+            score_source=score_source,
+            coverage_pct=round(coverage_pct, 2),
+            negative_mentions=negative_mentions,
+            domain_scores_raw=llm_subcats if llm_subcats else None,
+            scoring_explanation=scoring_explanation,
+            simple_explanation=simple_explanation,
+            scoring_breakdown=breakdown,
+            subcategory_details=subcat_details,
+            normalization_applied=normalization_applied,
+            raw_subcategory_sum=raw_sum,
+            gap_based_recommendations=gap_based_recs
+        )
+    except Exception as e:
+        # Enhanced error logging and graceful fallback path
+        import traceback
+        err_type = type(e).__name__
+        tb_str = "".join(traceback.format_exception(e))[-2000:]
+        print(f"[evaluate_pillar] [ERROR] Agent execution failed for {name}: {err_type}: {e}")
+        print(f"[evaluate_pillar] [TRACE] Tail of stack (last 2k chars):\n{tb_str}")
+        # Mark pillar as completed with fallback so UI doesn't show perpetual failure
+        await _update_pillar_progress(aid, name, 100)
+        await _update_pillar_status(aid, name, "completed")
+        # Return minimal result for continuity
+        return PillarResult(
+            pillar=name,
+            overall_score=0,
+            subcategories={},
+            recommendations=[],
+            confidence="Low"
+        )
+
+
+async def _generate_llm_recommendation_content(subcat_key: str, score: int, pillar: str) -> Dict[str, str]:
+    """Use LLM with Azure documentation to generate customized recommendation content"""
+    if not openai_client:
+        print(f"[LLM] OpenAI client not initialized - using static templates")
+        # Fallback to static templates if OpenAI not available
+        return {
+            "description": _generate_description(subcat_key, score, pillar),
+            "recommendation": _generate_recommendation(subcat_key, pillar),
+            "business_impact": _generate_business_impact(subcat_key, score, pillar)
+        }
+    
+    try:
+        deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4")
+        print(f"[LLM] Generating recommendation for {subcat_key} ({pillar}) using Azure OpenAI deployment: {deployment_name}")
+        
+        # Create a prompt for the LLM
+        prompt = f"""You are an Azure Well-Architected Framework expert. Generate THREE distinct sections for a recommendation addressing {subcat_key} in the {pillar} pillar (current score: {score}/100).
+
+DESCRIPTION (Why and What):
+Explain what the non-compliance or issue is and why it matters. Focus on the gap in the current architecture. Be specific about what's missing or inadequate. 2-3 sentences.
+
+RECOMMENDATION (How to Fix):
+Provide specific, actionable Azure-based remediation steps. Include specific Azure services, features, and best practices. Reference Azure documentation where relevant. 3-4 sentences with concrete implementation guidance.
+
+BUSINESS IMPACT (Customer Effect):
+Explain the specific business consequences of this gap - not generic statements. Focus on tangible impacts like downtime duration, data loss risk, cost implications, or security breach scenarios. Make it relevant to this specific subcategory. 2-3 sentences.
+
+Format your response as:
+DESCRIPTION:
+[your description here]
+
+RECOMMENDATION:
+[your recommendation here]
+
+BUSINESS_IMPACT:
+[your business impact here]"""
+
+        response = await openai_client.chat.completions.create(
+            model=deployment_name,
+            messages=[
+                {"role": "system", "content": "You are an Azure Well-Architected Framework expert providing specific, actionable guidance."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=800
+        )
+        
+        content = response.choices[0].message.content or ""
+        print(f"[LLM] Generated content length: {len(content)} chars")
+        print(f"[LLM] First 200 chars: {content[:200]}")
+        
+        # Parse the response - use case-insensitive matching
+        description = ""
+        recommendation = ""
+        business_impact = ""
+        
+        # Try case-insensitive parsing
+        content_upper = content.upper()
+        
+        if "DESCRIPTION:" in content_upper:
+            # Find the actual positions in original content
+            desc_start = content_upper.index("DESCRIPTION:") + len("DESCRIPTION:")
+            
+            if "RECOMMENDATION:" in content_upper:
+                rec_start_marker = content_upper.index("RECOMMENDATION:")
+                description = content[desc_start:rec_start_marker].strip()
+                rec_start = rec_start_marker + len("RECOMMENDATION:")
+                
+                if "BUSINESS_IMPACT:" in content_upper or "BUSINESS IMPACT:" in content_upper:
+                    # Try both formats
+                    impact_marker = "BUSINESS_IMPACT:" if "BUSINESS_IMPACT:" in content_upper else "BUSINESS IMPACT:"
+                    impact_start_marker = content_upper.index(impact_marker)
+                    recommendation = content[rec_start:impact_start_marker].strip()
+                    impact_start = impact_start_marker + len(impact_marker)
+                    business_impact = content[impact_start:].strip()
+                else:
+                    # No business impact marker - take rest as recommendation
+                    recommendation = content[rec_start:].strip()
+            else:
+                # No recommendation marker - everything after description
+                description = content[desc_start:].strip()
+        
+        print(f"[LLM] Parsed - Desc: {len(description)} chars, Rec: {len(recommendation)} chars, Impact: {len(business_impact)} chars")
+        
+        # Fallback if parsing failed
+        if not description or not recommendation or not business_impact:
+            print(f"[LLM] Parsing incomplete (desc={bool(description)}, rec={bool(recommendation)}, impact={bool(business_impact)}) - falling back to static templates")
+            return {
+                "description": _generate_description(subcat_key, score, pillar),
+                "recommendation": _generate_recommendation(subcat_key, pillar),
+                "business_impact": _generate_business_impact(subcat_key, score, pillar)
+            }
+        
+        print(f"[LLM] Successfully generated custom content for {subcat_key}")
+        return {
+            "description": description,
+            "recommendation": recommendation,
+            "business_impact": business_impact
+        }
+    
+    except Exception as e:
+        print(f"[LLM recommendation generation failed]: {e}")
+        # Fallback to static templates
+        return {
+            "description": _generate_description(subcat_key, score, pillar),
+            "recommendation": _generate_recommendation(subcat_key, pillar),
+            "business_impact": _generate_business_impact(subcat_key, score, pillar)
+        }
+
+
+async def _generate_rich_business_impact(subcat_key: str, pillar: str, priority: str, gap_score: int, description: str, recommendation: str) -> str:
+    """ALWAYS attempt to produce a rich, metric-driven business impact statement.
+
+    Rules for output:
+    - 2 concise sentences (max ~65 words total)
+    - First sentence: risk/consequence if gap not addressed (quantify: downtime min/hr per month, % breach likelihood increase, cost inefficiency %, MTTR, incident volume, performance degradation, wasted spend, compliance penalty exposure)
+    - Second sentence: benefit/result after implementing recommendation (quantify improvement: % reduction, minutes saved, cost avoided, SLA uplift, resilience gain, security risk reduction)
+    - No leading labels, no bullet points, no generic 'High impact' phrasing.
+    - Avoid speculative guarantees; use estimations ("could reduce", "may avoid", "can lower") unless evidence-based numbers are clearly implied by common Azure benchmarks.
+    - Prefer 1–2 numeric values (percentages, time units, dollar ranges if cost pillar, risk probabilities if security).
+    """
+    print(f"[RICH_IMPACT] Called for {subcat_key}, openai_client={'AVAILABLE' if openai_client else 'NONE'}")
+    if not openai_client:
+        fallback = _generate_business_impact(subcat_key, gap_score, pillar)
+        print(f"[RICH_IMPACT] No OpenAI client, returning fallback: {fallback[:80]}")
+        return fallback
+    try:
+        deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4")
+        prompt = f"""You are an Azure Well-Architected Framework expert producing BUSINESS IMPACT statements.
+Pillar: {pillar}
+Subcategory: {subcat_key}
+Priority: {priority}
+Current Subcategory Score: {gap_score}/100
+
+ARCHITECTURE GAP (why it matters):\n{description[:500]}\n
+REMEDIATION PLAN (what will be done):\n{recommendation[:500]}\n
+Write TWO SENTENCES:
+1) Quantified negative consequence if gap persists.
+2) Quantified benefit after remediation.
+Include 1-2 concrete metrics (%, minutes, hours, cost $, MTTR, incident count, risk probability, throughput / latency improvement, compliance exposure, or capacity utilization).
+Do NOT start with 'High impact on'.
+NO prefixed labels. Output ONLY the two sentences.
+"""
+        response = await openai_client.chat.completions.create(
+            model=deployment_name,
+            messages=[
+                {"role": "system", "content": "You write concise, metric-driven, business-focused impact statements."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.45,
+            max_tokens=230
+        )
+        text = (response.choices[0].message.content or "").strip()
+        import re as _re
+        # Remove any accidental label
+        text = _re.sub(r'(?i)^business impact[:\-\s]*', '', text).strip()
+        # Enforce two sentences: condense if more
+        parts = [p.strip() for p in _re.split(r'(?<=[.!?])\s+', text) if p.strip()]
+        if len(parts) > 2:
+            text = ' '.join(parts[:2])
+        elif len(parts) == 1:
+            # Try to split with semicolons if single sentence too long
+            subparts = [sp.strip() for sp in text.split(';') if sp.strip()]
+            if len(subparts) >= 2:
+                text = f"{subparts[0]}. {subparts[1]}"
+        # Reject if still generic
+        lowered = text.lower()
+        if lowered.startswith(('high impact on', 'medium impact on', 'low impact on')) or len(text) < 40:
+            print(f"[RICH_IMPACT] Generated impact too generic or short for {subcat_key}, falling back to legacy generator")
+            return _generate_business_impact(subcat_key, gap_score, pillar)
+        print(f"[RICH_IMPACT] Final impact for {subcat_key}: {text[:110]}")
+        return text
+    except Exception as e:
+        print(f"[RICH_IMPACT] LLM error for {subcat_key}: {e}")
+        return _generate_business_impact(subcat_key, gap_score, pillar)
+
+
+def _suggest_service(code: str) -> str:
+    return {
+        "reliability": "Azure Kubernetes Service",
+        "security": "Azure Key Vault",
+        "cost": "Azure Advisor",
+        "operational": "Azure Monitor",
+        "performance": "Azure Front Door",
+    }.get(code, "Azure Resource")
+
+
+async def _store_pillar_results(aid: str, results: List[PillarResult]):
+    payload: Dict[str, Any] = {}
+    payload["pillar_results"] = [r.model_dump() for r in results]
+    if results:
+        payload["overall_architecture_score"] = round(sum(r.overall_score for r in results) / len(results), 2)
+    if mongo_db is not None:
+        try:
+            await mongo_db["assessments"].update_one({"id": aid}, {"$set": payload})
+            print(f"[store_pillar_results] [OK] Persisted {len(results)} pillar results for {aid}")
+        except Exception as e:
+            print(f"[store_pillar_results] [ERROR] MongoDB update failed: {e}")
+            if aid in ASSESSMENTS:
+                ASSESSMENTS[aid].update(payload)
+    else:
+        a = ASSESSMENTS.get(aid)
+        if not a:
+            return
+        a.update(payload)
+        ASSESSMENTS[aid] = a
+
+
+async def _finalize(aid: str):
+    if mongo_db is not None:
+        try:
+            await mongo_db["assessments"].update_one(
+                {"id": aid},
+                {"$set": {"progress": 100, "status": "completed"}}
+            )
+            print(f"[finalize] [OK] Assessment {aid} completed and persisted")
+        except Exception as e:
+            print(f"[finalize] [ERROR] MongoDB update failed: {e}")
+            if aid in ASSESSMENTS:
+                ASSESSMENTS[aid]["progress"] = 100
+                ASSESSMENTS[aid]["status"] = "completed"
+    else:
+        a = ASSESSMENTS.get(aid)
+        if not a:
+            return
+        a["progress"] = 100
+        a["status"] = "completed"
+        ASSESSMENTS[aid] = a
+
+
+async def _fail(aid: str):
+    if mongo_db is not None:
+        try:
+            await mongo_db["assessments"].update_one(
+                {"id": aid},
+                {"$set": {"status": "failed"}}
+            )
+            print(f"[fail] [WARN]  Assessment {aid} marked as failed in MongoDB")
+        except Exception as e:
+            print(f"[fail] [ERROR] MongoDB update failed: {e}")
+            if aid in ASSESSMENTS:
+                ASSESSMENTS[aid]["status"] = "failed"
+    else:
+        a = ASSESSMENTS.get(aid)
+        if not a:
+            return
+        a["status"] = "failed"
+        ASSESSMENTS[aid] = a
+
+
+@app.get("/api/assessments/{aid}/poll", response_model=Assessment)
+async def poll(aid: str):
+    return await get_assessment(aid)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+@app.get("/api/assessments/{aid}/export-excel")
+async def export_excel(aid: str):
+    """Generate and download professionally formatted Excel report for an assessment"""
+    from fastapi.responses import StreamingResponse
+    from backend.app.excel_export import create_styled_excel
+    
+    # Fetch assessment
+    if USE_MONGO and db is not None:
+        doc = await db.assessments.find_one({"id": aid})
+        if not doc:
+            raise HTTPException(status_code=404, detail=f"Assessment {aid} not found")
+        doc.pop("_id", None)
+        assessment_data = doc
+    else:
+        if aid not in ASSESSMENT_STORE:
+            raise HTTPException(status_code=404, detail=f"Assessment {aid} not found")
+        assessment_data = ASSESSMENT_STORE[aid]
+    
+    # Generate Excel
+    excel_file = create_styled_excel(assessment_data)
+    
+    # Return as downloadable file
+    name = assessment_data.get('name', 'assessment').replace(' ', '_')
+    filename = f"{name}_{aid[:8]}.xlsx"
+    
+    return StreamingResponse(
+        excel_file,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@app.post("/api/quick-assessment", response_model=QuickAssessmentResponse)
+async def quick_assessment(payload: QuickAssessmentRequest):
+    """Run a full multi-pillar assessment synchronously and return results directly.
+
+    Steps:
+      1. Build synthetic document list (architecture + optional cases CSV)
+      2. Create unified corpus (same format orchestrator would build)
+      3. Execute all pillar evaluations concurrently using existing _evaluate_pillar
+      4. Aggregate results & compute overall architecture score
+    """
+    aid = _new_id("quick")
+    started = dt.datetime.utcnow()
+
+    # Synthetic documents mimicking upload structure
+    documents: List[Dict[str, Any]] = []
+    arch_doc = {
+        "id": "doc_arch_1",
+        "filename": f"{payload.name}.txt",
+        "content_type": "text/plain",
+        "size": len(payload.architecture_text.encode("utf-8")),
+        "category": "architecture",
+        "uploaded_at": started.isoformat(),
+        "raw_text": payload.architecture_text,
+        "llm_analysis": payload.architecture_text[:1200],
+        "analysis_metadata": {"type": "architecture", "length": len(payload.architecture_text)}
+    }
+    documents.append(arch_doc)
+    if payload.support_cases_csv:
+        cases_doc = {
+            "id": "doc_cases_1",
+            "filename": f"{payload.name}_cases.csv",
+            "content_type": "text/csv",
+            "size": len(payload.support_cases_csv.encode("utf-8")),
+            "category": "case",
+            "uploaded_at": started.isoformat(),
+            "raw_text": payload.support_cases_csv,
+            "llm_analysis": _extract_case_patterns(payload.support_cases_csv),
+            "analysis_metadata": {"type": "case_csv"}
+        }
+        documents.append(cases_doc)
+
+    # Build unified corpus (prefer enriched fields before legacy llm_analysis)
+    corpus_parts = []
+    for d in documents:
+        if d.get("raw_text"):
+            corpus_parts.append(str(d.get("raw_text")))
+        # Diagram raw extracted tokens provide concrete evidence
+        if d.get("raw_extracted_text"):
+            corpus_parts.append(str(d.get("raw_extracted_text")))
+        # Prefer concise summaries for diagram & cases
+        if d.get("diagram_summary"):
+            corpus_parts.append(str(d.get("diagram_summary")))
+        if d.get("support_cases_summary"):
+            corpus_parts.append(str(d.get("support_cases_summary")))
+        # Legacy fallback
+        if d.get("llm_analysis"):
+            corpus_parts.append(str(d.get("llm_analysis")))
+    unified_corpus = "\n\n".join(corpus_parts)
+
+    # Execute pillars concurrently using existing evaluator
+    async def evaluate(code: str, name: str):
+        # Temporarily inject unified corpus into in-memory store so _evaluate_pillar picks it up
+        # (Lightweight approach without refactoring existing function signature)
+        ASSESSMENTS.setdefault(aid, {})["unified_corpus"] = unified_corpus
+        return await _evaluate_pillar(aid, code, name)
+
+    tasks = [evaluate(code, name) for code, name in PILLARS]
+    raw_results = await asyncio.gather(*tasks)
+    pillar_results: List[PillarResult] = [r for r in raw_results if isinstance(r, PillarResult)]
+    overall_score = None
+    if pillar_results:
+        overall_score = round(sum(r.overall_score for r in pillar_results) / len(pillar_results), 2)
+
+    finished = dt.datetime.utcnow()
+    elapsed_ms = int((finished - started).total_seconds() * 1000)
+
+    return QuickAssessmentResponse(
+        id=aid,
+        name=payload.name,
+        created_at=started.isoformat(),
+        pillar_results=pillar_results,
+        cross_pillar_conflicts=[],  # conflict analysis omitted in quick path
+        overall_architecture_score=overall_score,
+        unified_corpus=unified_corpus,
+        elapsed_ms=elapsed_ms,
+    )
+
+
+@app.post("/api/assessments/{aid}/rescore", response_model=Assessment)
+async def rescore_assessment(aid: str):
+    """Recompute pillar scores using the latest conservative scoring logic without regenerating recommendations.
+
+    Steps:
+      1. Fetch existing assessment (must have documents or unified_corpus).
+      2. Rebuild unified corpus from stored documents (raw_text + llm_analysis) if available.
+      3. Snapshot current pillar scores into score_history.
+      4. Recalculate evidence-based scores for each pillar (no LLM agent invocation).
+      5. Scale existing subcategory scores proportionally to new pillar score (preserving structure & recommendations).
+      6. Update overall_architecture_score and persist changes.
+    """
+    # Load assessment
+    if mongo_db is not None:
+        try:
+            doc = await mongo_db["assessments"].find_one({"id": aid})
+        except Exception as e:
+            print(f"[rescore] [ERROR] MongoDB query failed: {e}")
+            raise HTTPException(500, "database query failed")
+    else:
+        doc = ASSESSMENTS.get(aid)
+
+    if not doc:
+        raise HTTPException(404, "assessment not found")
+
+    assessment = Assessment(**doc)
+    if not assessment.documents and not assessment.unified_corpus:
+        raise HTTPException(400, "no documents or corpus available to rescore")
+
+    # Rebuild unified corpus if documents present
+    if assessment.documents:
+        corpus_parts: List[str] = []
+        for d in assessment.documents:
+            if d.raw_text:
+                corpus_parts.append(d.raw_text)
+            if getattr(d, "raw_extracted_text", None):
+                corpus_parts.append(str(getattr(d, "raw_extracted_text")))
+            if getattr(d, "diagram_summary", None):
+                corpus_parts.append(str(getattr(d, "diagram_summary")))
+            if getattr(d, "support_cases_summary", None):
+                corpus_parts.append(str(getattr(d, "support_cases_summary")))
+            if d.llm_analysis:  # legacy
+                corpus_parts.append(d.llm_analysis)
+        rebuilt_corpus = "\n\n".join(corpus_parts)
+    else:
+        rebuilt_corpus = assessment.unified_corpus or ""
+
+    if not rebuilt_corpus.strip():
+        raise HTTPException(400, "unified corpus empty; cannot rescore")
+
+    # Prepare snapshot history
+    snapshot = {
+        "timestamp": dt.datetime.utcnow().isoformat(),
+        "overall_architecture_score": assessment.overall_architecture_score,
+        "pillar_scores": {r.pillar: r.overall_score for r in assessment.pillar_results},
+        "score_source": {r.pillar: r.score_source for r in assessment.pillar_results},
+    }
+    assessment.score_history.append(snapshot)
+
+    # Map existing results for recommendations reuse
+    existing_by_name = {r.pillar: r for r in assessment.pillar_results}
+    new_pillar_results: List[PillarResult] = []
+
+    # Recompute scores for each pillar synchronously (no agent LLM calls)
+    for code, name in PILLARS:
+        existing = existing_by_name.get(name)
+        try:
+            new_score, confidence, _ignored_subcats, score_source, coverage_pct, negative_mentions, breakdown = _calculate_conservative_score(rebuilt_corpus, code, name)
+        except Exception as e:
+            print(f"[rescore] [ERROR] scoring failed for {name}: {e}")
+            # Preserve existing result on failure
+            if existing:
+                new_pillar_results.append(existing)
+            continue
+
+        # Scale existing subcategories proportionally if present
+        if existing and existing.subcategories:
+            original_sum = sum(existing.subcategories.values()) or 1
+            scale_factor = new_score / original_sum
+            scaled_subcats = {k: max(0, min(100, int(v * scale_factor))) for k, v in existing.subcategories.items()}
+            # Normalize sum to new_score (adjust largest key for rounding drift)
+            current_sum = sum(scaled_subcats.values())
+            if current_sum != new_score:
+                diff = new_score - current_sum
+                largest_key = max(scaled_subcats.keys(), key=lambda k: scaled_subcats[k])
+                scaled_subcats[largest_key] = max(0, min(100, scaled_subcats[largest_key] + diff))
+        else:
+            # If no existing subcategories, fabricate simple even distribution
+            # Use canonical breakdown keys similar to _evaluate_pillar fallback
+            canonical_map = {
+                "Reliability": ["Backup Strategy", "Disaster Recovery", "High Availability", "Monitoring", "Testing"],
+                "Security": ["Identity Management", "Network Security", "Data Protection", "Threat Detection"],
+                "Cost Optimization": ["Resource Optimization", "Monitoring", "Reserved Capacity"],
+                "Operational Excellence": ["Automation", "Monitoring", "Documentation", "Testing"],
+                "Performance Efficiency": ["Scalability", "Resource Selection", "Monitoring", "Optimization"],
+            }
+            keys = canonical_map.get(name, ["General"])
+            base = max(1, int(new_score / max(1, len(keys))))
+            scaled_subcats = {k: base for k in keys}
+            diff = new_score - sum(scaled_subcats.values())
+            if diff and keys:
+                scaled_subcats[keys[0]] = max(0, min(100, scaled_subcats[keys[0]] + diff))
+
+        recommendations = existing.recommendations if existing else []
+        scoring_explanation = {
+            "evidence_score": new_score,
+            "pre_elevation_score": new_score,
+            "final_score": new_score,
+            "elevation_uplift": 0,
+            "scale_factor_initial": None,
+            "scale_factor_final": None,
+            "subcategories_sum_before": sum(scaled_subcats.values()),
+            "subcategories_sum_final": sum(scaled_subcats.values()),
+            "score_source": score_source,
+        }
+        # Build subcategory_details similar to _evaluate_pillar logic (no normalization scaling here)
+        raw_sum = sum(scaled_subcats.values()) if scaled_subcats else 0
+        normalization_applied = raw_sum > 100 and new_score <= 100 and raw_sum != new_score
+        norm_factor = None
+        if normalization_applied and raw_sum > 0:
+            norm_factor = new_score / raw_sum
+        concepts_section = (breakdown or {}).get("concepts", {})
+        import re as _re_tokens2
+        def _tokens2(s: str) -> set:
+            return set(_re_tokens2.findall(r"[A-Za-z]+", s.lower()))
+        concept_found: List[str] = []
+        concept_missing: List[str] = []
+        # Flatten concept lists if structured by tiers
+        for tier, data in concepts_section.items():
+            if isinstance(data, dict):
+                concept_found.extend(data.get("found", []) or [])
+                concept_missing.extend(data.get("missing", []) or [])
+        subcat_details: Dict[str, SubcategoryDetail] = {}
+        # Refined attribution & penalties (mirror evaluate logic)
+        def _tokenize2(t: str) -> set:
+            return set(_re_tokens2.findall(r"[A-Za-z]+", t.lower()))
+        sub_tokens = {sc: _tokenize2(sc) for sc in scaled_subcats}
+        def _attr2(concepts: List[str]) -> Dict[str, List[str]]:
+            assigned = {sc: [] for sc in sub_tokens}
+            for c in concepts:
+                ct = _tokenize2(c)
+                best = None
+                best_ov = 0
+                for sc, toks in sub_tokens.items():
+                    ov = len(ct & toks)
+                    if ov > best_ov:
+                        best_ov = ov
+                        best = sc
+                if best:
+                    assigned[best].append(c)
+                else:
+                    if scaled_subcats:
+                        largest = max(scaled_subcats.keys(), key=lambda k: scaled_subcats[k])
+                        assigned[largest].append(c)
+            return assigned
+        found_map2 = _attr2(concept_found)
+        miss_map2 = _attr2(concept_missing)
+        curated_expected_map2: Dict[str, List[str]] = {}
+        if USE_CURATED_EXPECTED_CONCEPTS:
+            curated_loaded2 = load_expected_concepts(name)
+            if curated_loaded2:
+                curated_expected_map2 = curated_loaded2
+        import re as _re_cur2
+        def _tok_cur2(s: str) -> set:
+            return set(_re_cur2.findall(r"[A-Za-z]+", s.lower()))
+        curated_tokens2 = {k: _tok_cur2(k) for k in curated_expected_map2}
+        def _best_curated2(subcat_name: str) -> Optional[List[str]]:
+            if subcat_name in curated_expected_map2:
+                return curated_expected_map2[subcat_name]
+            stoks = _tok_cur2(subcat_name)
+            best = None
+            best_overlap = 0
+            for ck, ctoks in curated_tokens2.items():
+                overlap = len(stoks & ctoks)
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    best = ck
+            if best and best_overlap > 0:
+                return curated_expected_map2.get(best)
+            alias_map2 = {
+                "reliability-focused design foundations": "Simplicity & Efficiency",
+                "identify and rate user and system flows": "Flow Identification & Criticality",
+                "identify user flows": "Flow Identification & Criticality",
+                "perform failure mode analysis": "Failure Mode Analysis",
+                "perform failure mode analysis (fma)": "Failure Mode Analysis",
+                "failure mode analysis": "Failure Mode Analysis",
+                "define reliability and recovery targets": "Reliability & Recovery Targets",
+                "reliability targets": "Reliability & Recovery Targets",
+                "recovery targets": "Reliability & Recovery Targets",
+                "implement redundancy": "Redundancy",
+                "add redundancy at different levels": "Redundancy",
+                "redundancy": "Redundancy",
+                "establish scaling strategy": "Scaling Strategy",
+                "implement a timely and reliable scaling strategy": "Scaling Strategy",
+                "scaling strategy": "Scaling Strategy",
+                "apply self-healing and resilience patterns": "Self-Healing & Resilience Patterns",
+                "strengthen resiliency with self-preservation and self-healing": "Self-Healing & Resilience Patterns",
+                "self-healing": "Self-Healing & Resilience Patterns",
+                "resilience": "Self-Healing & Resilience Patterns",
+                "conduct resiliency and chaos testing": "Resiliency & Chaos Testing",
+                "test for resiliency and availability scenarios": "Resiliency & Chaos Testing",
+                "resiliency testing": "Resiliency & Chaos Testing",
+                "chaos testing": "Resiliency & Chaos Testing",
+                "establish bcdr planning": "BCDR Planning",
+                "implement structured, tested, and documented bcdr plans": "BCDR Planning",
+                "bcdr": "BCDR Planning",
+                "disaster recovery": "BCDR Planning",
+                "implement health indicators and monitoring": "Health Indicators & Monitoring",
+                "measure and model the solution's health indicators": "Health Indicators & Monitoring",
+                "health indicators": "Health Indicators & Monitoring",
+                "health check": "Health Indicators & Monitoring",
+            }
+            lowered = subcat_name.lower()
+            for k,v in alias_map2.items():
+                if k in lowered and v in curated_expected_map2:
+                    return curated_expected_map2[v]
+            return None
+        # Helper: Generate generic expected concepts (same as primary assessment)
+        def _generate_generic_expected2(subcat_name: str) -> List[str]:
+            """Extract meaningful concepts from subcategory name as fallback."""
+            import re
+            words = re.findall(r'[A-Z][a-z]+|[a-z]+', subcat_name)
+            stop_words = {'and', 'the', 'a', 'an', 'or', 'with', 'for', 'to', 'in', 'on', 'at', 'from', 'improve', 'implement', 'establish', 'create', 'define', 'maintain', 'enhance', 'optimize', 'develop', 'ensure'}
+            concepts = [w.lower() for w in words if w.lower() not in stop_words and len(w) > 2]
+            expansions = []
+            for concept in concepts:
+                if concept in ['cost', 'costs']:
+                    expansions.extend(['budget', 'spending', 'optimization', 'savings'])
+                elif concept in ['security', 'secure']:
+                    expansions.extend(['encryption', 'authentication', 'authorization', 'compliance'])
+                elif concept in ['performance', 'efficient', 'efficiency']:
+                    expansions.extend(['latency', 'throughput', 'optimization', 'caching'])
+                elif concept in ['operational', 'operations']:
+                    expansions.extend(['monitoring', 'automation', 'deployment', 'maintenance'])
+                elif concept in ['data']:
+                    expansions.extend(['storage', 'backup', 'retention', 'classification'])
+                elif concept in ['testing', 'test']:
+                    expansions.extend(['validation', 'qa', 'regression', 'automation'])
+            all_concepts = list(dict.fromkeys(concepts + expansions[:5]))
+            return all_concepts[:8] if all_concepts else ['best practices', 'documentation', 'standards']
+        max_cov_pen = 18
+        max_gap_pen = 20
+        total_missing2 = sum(len(v) for v in miss_map2.values()) or 1
+        for sc_name, sc_score in scaled_subcats.items():
+            found_match = found_map2.get(sc_name, [])
+            missing_match = miss_map2.get(sc_name, [])
+            curated_concepts2 = _best_curated2(sc_name)
+            curated_or_scoped = curated_concepts2 or list(dict.fromkeys(found_match + missing_match))
+            if curated_or_scoped and not set(found_match + missing_match).issubset(set(curated_or_scoped)):
+                curated_or_scoped = list(dict.fromkeys(curated_or_scoped + found_match + missing_match))
+            # Critical: When Found is empty, ensure Missing shows what's expected
+            if not found_match and not missing_match:
+                # If we have curated concepts, use them; otherwise generate generic concepts from name
+                if curated_concepts2:
+                    missing_match = curated_concepts2
+                    curated_or_scoped = curated_concepts2
+                else:
+                    # Fallback: generate generic expected concepts from subcategory name
+                    generic_concepts2 = _generate_generic_expected2(sc_name)
+                    missing_match = generic_concepts2
+                    curated_or_scoped = generic_concepts2
+            elif not found_match and curated_or_scoped and not missing_match:
+                # Found=0, expected exists, but missing is empty -> populate missing with expected
+                missing_match = curated_or_scoped
+            # Calculate coverage penalty: if both found and missing are empty, apply maximum penalty
+            if not found_match and not missing_match:
+                # No evidence at all -> maximum coverage penalty
+                missing_ratio = 1.0
+                coverage_penalty = max_cov_pen
+            elif found_match or missing_match:
+                missing_ratio = len(missing_match) / max(1, (len(found_match) + len(missing_match)))
+                coverage_penalty = int(missing_ratio * max_cov_pen)
+            else:
+                missing_ratio = 0
+                coverage_penalty = 0
+            share = len(missing_match) / (sum(len(v) for v in miss_map2.values()) or 1) if missing_match else 0
+            gap_penalty = int(share * (negative_mentions or 0) * (max_gap_pen / 10)) if negative_mentions else 0
+            gap_penalty = min(max_gap_pen, gap_penalty)
+            final_score = max(0, sc_score - coverage_penalty - gap_penalty)
+            if norm_factor:
+                final_score = int(final_score * norm_factor)
+            if not found_match:
+                final_score = min(final_score, NO_EVIDENCE_SUBCATEGORY_FLOOR)
+            justification = (
+                f"Rescore base {sc_score} → {final_score}; found {len(found_match)} of {len(found_match)+len(missing_match)}; missing {len(missing_match)}"
+                + (f" ({', '.join(missing_match)})" if missing_match else "")
+                + f". Penalties: coverage={coverage_penalty}, gaps={gap_penalty}."
+            )
+            subcat_details[sc_name] = SubcategoryDetail(
+                name=sc_name,
+                base_score=sc_score,
+                coverage_penalty=coverage_penalty,
+                gap_penalty=gap_penalty,
+                final_score=final_score,
+                confidence=confidence,
+                evidence_found=found_match,
+                missing_concepts=missing_match,
+                gaps_detected=[] if negative_mentions in (None,0) else [f"{negative_mentions} pillar-level gap(s)"],
+                normalization_factor=norm_factor,
+                prompt_concepts=curated_or_scoped,
+                found_concepts=found_match,
+                justification_text=justification,
+                human_summary=(
+                    f"{sc_name} shows solid coverage of {len(found_match)} concept(s)" if found_match and not missing_match else
+                    (f"Partial coverage: {len(found_match)}/{len(found_match)+len(missing_match)} concept(s); missing "
+                     f"{', '.join(missing_match[:5])}{'...' if len(missing_match) > 5 else ''}" if found_match and missing_match else
+                     f"No substantive evidence detected; expected concept(s) not found: {', '.join(missing_match[:5])}{'...' if len(missing_match) > 5 else ''}")
+                ),
+                expected_concepts=curated_or_scoped,
+                substantiated=bool(found_match),
+            )
+        new_pillar_results.append(
+            PillarResult(
+                pillar=name,
+                overall_score=new_score,
+                subcategories=scaled_subcats,
+                recommendations=recommendations,
+                confidence=confidence,
+                score_source=score_source,
+                coverage_pct=round(coverage_pct, 2) if coverage_pct is not None else None,
+                negative_mentions=negative_mentions,
+                domain_scores_raw=None,
+                scoring_explanation=scoring_explanation,
+                simple_explanation={
+                    "summary": f"{name} rescored at {new_score}/100 ({confidence} confidence).",
+                    "drivers": [
+                        {"factor": "coverage", "impact": f"{coverage_pct:.1f}%" if coverage_pct is not None else "n/a"},
+                        {"factor": "gaps", "impact": f"{negative_mentions} gap(s)"},
+                        {"factor": "provenance", "impact": score_source}
+                    ],
+                    "coverage_band": (
+                        "limited" if (coverage_pct or 0) < 40 else
+                        "moderate" if (coverage_pct or 0) < 60 else
+                        "strong" if (coverage_pct or 0) < 75 else
+                        "comprehensive"
+                    ),
+                    "gaps_assessment": (
+                        "no critical gaps detected" if (negative_mentions or 0) == 0 else
+                        "some gaps noted" if (negative_mentions or 0) <= 3 else
+                        "several gaps need attention" if (negative_mentions or 0) <= 8 else
+                        "numerous gaps significantly reduce maturity"
+                    ),
+                    "focus_areas": sorted(scaled_subcats, key=lambda k: scaled_subcats[k])[:3],
+                    "confidence": confidence,
+                    "score_source": score_source,
+                    "metrics": {
+                        "score": new_score,
+                        "coverage_pct": round(coverage_pct, 2) if coverage_pct is not None else None,
+                        "negative_mentions": negative_mentions
+                    }
+                },
+                scoring_breakdown=breakdown,
+                subcategory_details=subcat_details,
+                normalization_applied=normalization_applied,
+                raw_subcategory_sum=raw_sum,
+                gap_based_recommendations=[],
+            )
+        )
+
+    # Recompute overall architecture score
+    if new_pillar_results:
+        assessment.pillar_results = new_pillar_results
+        assessment.unified_corpus = rebuilt_corpus
+        assessment.overall_architecture_score = round(sum(r.overall_score for r in new_pillar_results) / len(new_pillar_results), 2)
+        assessment.status = "completed"  # remains completed
+    else:
+        raise HTTPException(500, "rescoring produced no results")
+
+    # Persist
+    if mongo_db is not None:
+        try:
+            await mongo_db["assessments"].update_one(
+                {"id": aid},
+                {"$set": {
+                    "pillar_results": [r.model_dump() for r in assessment.pillar_results],
+                    "overall_architecture_score": assessment.overall_architecture_score,
+                    "unified_corpus": assessment.unified_corpus,
+                    "score_history": assessment.score_history,
+                    "status": assessment.status,
+                    "progress": 100,
+                    "current_phase": "Rescored"
+                }}
+            )
+            print(f"[rescore] [OK] Persisted rescored assessment {aid}")
+        except Exception as e:
+            print(f"[rescore] [ERROR] MongoDB update failed: {e}")
+            # Fallback to in-memory if available
+            if aid in ASSESSMENTS:
+                ASSESSMENTS[aid] = assessment.model_dump()
+    else:
+        ASSESSMENTS[aid] = assessment.model_dump()
+
+    return assessment
+
+
+@app.post("/api/assessments/rescore-all", response_model=List[Assessment])
+async def bulk_rescore_assessments():
+    """Rescore all existing assessments (in DB or in-memory) returning updated list.
+
+    Useful after scoring logic changes so previously created assessments expose new
+    fields (domain_scores_raw, scoring_explanation, scoring_breakdown, simple_explanation)
+    and recomputed subcategory sums. Skips assessments with no documents/unified_corpus.
+    """
+    updated: List[Assessment] = []
+    stats = {"total": 0, "rescored": 0, "skipped": 0, "fields_added": {}}
+    
+    # Fetch list depending on storage backend
+    if mongo_db is not None:
+        try:
+            cursor = mongo_db["assessments"].find()
+            all_docs = await cursor.to_list(length=500)
+        except Exception as e:
+            print(f"[bulk_rescore] [ERROR] MongoDB query failed: {e}")
+            raise HTTPException(500, "database query failed")
+        source_iter = all_docs
+    else:
+        source_iter = list(ASSESSMENTS.values())
+
+    stats["total"] = len(list(source_iter)) if isinstance(source_iter, list) else 0
+    print(f"[bulk_rescore] Starting bulk rescore for {stats['total']} assessments")
+    
+    for raw in source_iter:
+        aid = raw.get("id")
+        if not aid:
+            continue
+        
+        # Track which fields were missing before rescore
+        missing_fields = []
+        pillar_results = raw.get("pillar_results", [])
+        if pillar_results:
+            first_pillar = pillar_results[0] if isinstance(pillar_results, list) else {}
+            if not first_pillar.get("scoring_breakdown"):
+                missing_fields.append("scoring_breakdown")
+            if not first_pillar.get("simple_explanation"):
+                missing_fields.append("simple_explanation")
+            if not first_pillar.get("scoring_explanation"):
+                missing_fields.append("scoring_explanation")
+            if not first_pillar.get("domain_scores_raw"):
+                missing_fields.append("domain_scores_raw")
+        
+        try:
+            # Reuse single assessment path
+            assessment = await rescore_assessment(aid)
+            updated.append(assessment)
+            stats["rescored"] += 1
+            
+            # Log which fields were added
+            if missing_fields:
+                print(f"[bulk_rescore] {aid}: Added missing fields: {', '.join(missing_fields)}")
+                for field in missing_fields:
+                    stats["fields_added"][field] = stats["fields_added"].get(field, 0) + 1
+        except HTTPException as he:
+            # Skip assessments not suitable for rescoring
+            print(f"[bulk_rescore] [SKIP] {aid}: {he.detail}")
+            stats["skipped"] += 1
+        except Exception as e:
+            print(f"[bulk_rescore] [ERROR] {aid}: {e}")
+            stats["skipped"] += 1
+    
+    # Print summary
+    print(f"[bulk_rescore] ===== SUMMARY =====")
+    print(f"[bulk_rescore] Total assessments: {stats['total']}")
+    print(f"[bulk_rescore] Successfully rescored: {stats['rescored']}")
+    print(f"[bulk_rescore] Skipped/Failed: {stats['skipped']}")
+    if stats["fields_added"]:
+        print(f"[bulk_rescore] Fields added across assessments:")
+        for field, count in stats["fields_added"].items():
+            print(f"[bulk_rescore]   - {field}: {count} assessments")
+    else:
+        print(f"[bulk_rescore] All assessments already had complete field set")
+    
+    return updated
+
+# Graceful shutdown: close OpenAI client sessions to avoid aiohttp warnings
+@app.on_event("shutdown")
+async def _shutdown():  # pragma: no cover - cleanup side effect
+    try:
+        if openai_client:
+            close_candidate = getattr(openai_client, "close", None) or getattr(openai_client, "aclose", None)
+            if callable(close_candidate):
+                if asyncio.iscoroutinefunction(close_candidate):
+                    await close_candidate()  # type: ignore
+                else:
+                    close_candidate()  # type: ignore
+                print("[shutdown] Closed OpenAI client")
+    except Exception as e:
+        print(f"[shutdown] OpenAI client close failed: {e}")
+
+
+if __name__ == "__main__":  # pragma: no cover
+    import uvicorn
+    uvicorn.run("backend.server:app", host="0.0.0.0", port=8000, reload=True)

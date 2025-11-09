@@ -1,19 +1,14 @@
 {
   "name": "azure-well-architected-agents",
-  "version": "1.0.0",
-  "description": "Multi-agent system for Azure Well-Architected Framework assessments",
-  "main": "main.py",
+  "version": "0.2.0",
+  "private": true,
   "scripts": {
-    "start": "python main.py",
-    "test": "pytest tests/",
-    "lint": "flake8 .",
-    "format": "black ."
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\" --names \"BACKEND,FRONTEND\" --prefix-colors \"cyan,magenta\" --kill-others-on-fail",
+    "backend": "cross-env PYTHONPATH=C:\\_Projects\\MAF\\wara\\azure-well-architected-agents .\\venv\\Scripts\\python.exe -m uvicorn backend.server:app --host 0.0.0.0 --port 8000 --reload",
+    "frontend": "cd frontend && npm run dev"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/your-org/azure-well-architected-agents.git"
-  },
-  "keywords": ["azure", "well-architected", "agents", "microsoft-agent-framework"],
-  "author": "Your Organization",
-  "license": "MIT"
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3"
+  }
 }

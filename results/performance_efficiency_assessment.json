@@ -1,0 +1,392 @@
+{
+  "overall_score": 32,
+  "domain_scores": {
+    "PE01": {
+      "score": 26,
+      "title": "Performance Targets & SLIs/SLOs"
+    },
+    "PE02": {
+      "score": 22,
+      "title": "Capacity & Demand Planning"
+    },
+    "PE03": {
+      "score": 38,
+      "title": "Service & Architecture Selection"
+    },
+    "PE04": {
+      "score": 34,
+      "title": "Data Collection & Telemetry"
+    },
+    "PE05": {
+      "score": 29,
+      "title": "Scaling & Partitioning Strategy"
+    },
+    "PE06": {
+      "score": 20,
+      "title": "Performance Testing & Benchmarking"
+    },
+    "PE07": {
+      "score": 28,
+      "title": "Code & Runtime Optimization"
+    },
+    "PE08": {
+      "score": 31,
+      "title": "Data Usage Optimization"
+    },
+    "PE09": {
+      "score": 20,
+      "title": "Critical Flow Optimization"
+    },
+    "PE10": {
+      "score": 30,
+      "title": "Operational Load Efficiency"
+    },
+    "PE11": {
+      "score": 23,
+      "title": "Live Issue Triage & Remediation"
+    },
+    "PE12": {
+      "score": 19,
+      "title": "Continuous Optimization & Feedback Loop"
+    }
+  },
+  "recommendations": [
+    {
+      "title": "Define Clear Performance Targets and SLIs/SLOs",
+      "description": "Establish latency, throughput, and error thresholds for core workflows based on business KPIs to guide capacity and reliability improvements.",
+      "severity": 1,
+      "priority": 1,
+      "impact": 8,
+      "pillar_codes": [
+        "PE01",
+        "PE09"
+      ]
+    },
+    {
+      "title": "Enable Cluster Autoscaler and Resource Quotas",
+      "description": "Implement AKS cluster autoscaler and namespace-level resource quotas for automated right-sizing, improved load handling, and cost controls.",
+      "severity": 1,
+      "priority": 2,
+      "impact": 8,
+      "pillar_codes": [
+        "PE02",
+        "PE05",
+        "PE10"
+      ]
+    },
+    {
+      "title": "Adopt Service Mesh for Traffic Management & Observability",
+      "description": "Integrate Istio or Linkerd to support circuit breaking, retries, granular telemetry, and async communication between microservices.",
+      "severity": 2,
+      "priority": 3,
+      "impact": 7,
+      "pillar_codes": [
+        "PE03",
+        "PE04",
+        "PE09"
+      ]
+    },
+    {
+      "title": "Implement Distributed Tracing Across All Microservices",
+      "description": "Deploy end-to-end distributed tracing with OpenTelemetry for all services to pinpoint sources of latency and enable critical flow analysis.",
+      "severity": 2,
+      "priority": 4,
+      "impact": 7,
+      "pillar_codes": [
+        "PE04",
+        "PE09"
+      ]
+    },
+    {
+      "title": "Extend Autoscaling: Add HPA/VPA and Pod Disruption Budgets",
+      "description": "Configure Horizontal and Vertical Pod Autoscaler (HPA, VPA) for all critical services and enforce Pod Disruption Budgets to maintain uptime during scaling.",
+      "severity": 2,
+      "priority": 5,
+      "impact": 6,
+      "pillar_codes": [
+        "PE05",
+        "PE02"
+      ]
+    },
+    {
+      "title": "Conduct Load, Stress, and Spike Testing Regularly",
+      "description": "Establish automated performance testing and benchmarking, especially for high-traffic events (e.g., Black Friday) to identify bottlenecks and regression.",
+      "severity": 2,
+      "priority": 6,
+      "impact": 8,
+      "pillar_codes": [
+        "PE06",
+        "PE09"
+      ]
+    },
+    {
+      "title": "Optimize Database and Query Performance",
+      "description": "Enable query performance insights, indexing strategies, and autoscale for Cosmos DB and SQL to minimize latency and avoid throttling under load.",
+      "severity": 2,
+      "priority": 7,
+      "impact": 7,
+      "pillar_codes": [
+        "PE08",
+        "PE03"
+      ]
+    },
+    {
+      "title": "Refactor Synchronous Flows to Event-Driven Architecture",
+      "description": "Decouple tightly coupled microservices and replace synchronous HTTP calls with asynchronous messaging using Service Bus or Event Grid for scalability.",
+      "severity": 2,
+      "priority": 8,
+      "impact": 9,
+      "pillar_codes": [
+        "PE09",
+        "PE05"
+      ]
+    },
+    {
+      "title": "Eliminate Resource Orphans and Implement Cost Optimization",
+      "description": "Clean up unused disks, enforce resource tagging, and activate Azure Cost Management budgets to improve operational efficiency and reduce waste.",
+      "severity": 3,
+      "priority": 9,
+      "impact": 6,
+      "pillar_codes": [
+        "PE10",
+        "PE02"
+      ]
+    },
+    {
+      "title": "Establish Automated Backup, DR Procedures, and Runbooks",
+      "description": "Configure automated database and persistent storage backups, disaster recovery runbooks, and regular failover testing to meet RPO/RTO targets.",
+      "severity": 1,
+      "priority": 10,
+      "impact": 8,
+      "pillar_codes": [
+        "PE02",
+        "PE11"
+      ]
+    },
+    {
+      "title": "Enable Custom Metrics, Dashboards & Alerts for All Services",
+      "description": "Implement granular metrics collection, custom health endpoints, and comprehensive dashboards to detect and respond to issues proactively.",
+      "severity": 3,
+      "priority": 11,
+      "impact": 7,
+      "pillar_codes": [
+        "PE04",
+        "PE11"
+      ]
+    },
+    {
+      "title": "Automate Incident Response and Post-Incident Reviews",
+      "description": "Set up a documented incident triage workflow, on-call tools, and post-incident analysis to improve live issue response and performance learning.",
+      "severity": 3,
+      "priority": 12,
+      "impact": 6,
+      "pillar_codes": [
+        "PE11",
+        "PE12"
+      ]
+    },
+    {
+      "title": "Establish Performance Review Cadence & Feedback Loop",
+      "description": "Schedule regular performance reviews, set optimization backlog, and use telemetry feedback to drive continuous improvement.",
+      "severity": 4,
+      "priority": 13,
+      "impact": 5,
+      "pillar_codes": [
+        "PE12"
+      ]
+    }
+  ],
+  "maturity": {
+    "pillar": "performance",
+    "overall_maturity_percent": 26.8,
+    "practice_scores": [
+      {
+        "code": "PE01",
+        "score": 1,
+        "weight": 0.08,
+        "matched_signals": [
+          "throughput"
+        ],
+        "coverage": 0.2,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "PE02",
+        "score": 1,
+        "weight": 0.08,
+        "matched_signals": [
+          "peak"
+        ],
+        "coverage": 0.2,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "PE03",
+        "score": 2,
+        "weight": 0.08,
+        "matched_signals": [
+          "aks",
+          "event-driven"
+        ],
+        "coverage": 0.4,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "PE04",
+        "score": 2,
+        "weight": 0.08,
+        "matched_signals": [
+          "metrics",
+          "observability"
+        ],
+        "coverage": 0.4,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "PE05",
+        "score": 3,
+        "weight": 0.09,
+        "matched_signals": [
+          "autoscale",
+          "hpa",
+          "multi-region"
+        ],
+        "coverage": 0.6,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "PE06",
+        "score": 0,
+        "weight": 0.09,
+        "matched_signals": [],
+        "coverage": 0.0,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "PE07",
+        "score": 3,
+        "weight": 0.08,
+        "matched_signals": [
+          "async",
+          "caching",
+          "batch"
+        ],
+        "coverage": 0.6,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "PE08",
+        "score": 1,
+        "weight": 0.08,
+        "matched_signals": [
+          "query"
+        ],
+        "coverage": 0.2,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "PE09",
+        "score": 0,
+        "weight": 0.08,
+        "matched_signals": [],
+        "coverage": 0.0,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "PE10",
+        "score": 0,
+        "weight": 0.08,
+        "matched_signals": [],
+        "coverage": 0.0,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "PE11",
+        "score": 2,
+        "weight": 0.09,
+        "matched_signals": [
+          "incident",
+          "on-call"
+        ],
+        "coverage": 0.4,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "PE12",
+        "score": 1,
+        "weight": 0.09,
+        "matched_signals": [
+          "review"
+        ],
+        "coverage": 0.2,
+        "mode": "legacy-proportional"
+      }
+    ],
+    "recommendations": [],
+    "gaps": [
+      {
+        "id": null,
+        "label": null,
+        "detail": null,
+        "practice": null,
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": []
+      },
+      {
+        "id": null,
+        "label": null,
+        "detail": null,
+        "practice": null,
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": []
+      },
+      {
+        "id": null,
+        "label": null,
+        "detail": null,
+        "practice": null,
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": []
+      },
+      {
+        "id": null,
+        "label": null,
+        "detail": null,
+        "practice": null,
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": []
+      },
+      {
+        "id": null,
+        "label": null,
+        "detail": null,
+        "practice": null,
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": []
+      }
+    ],
+    "matched_gap_count": 0,
+    "unmatched_gap_count": 5,
+    "framework": null
+  },
+  "mcp_references": [
+    {
+      "title": "Azure Well-Architected Framework - Performance Efficiency",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/framework/performance"
+    },
+    {
+      "title": "Performance efficiency checklist - Azure Well-Architected Framework",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/checklist/performance"
+    },
+    {
+      "title": "Performance optimization - Azure architecture best practices",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/best-practices/performance"
+    }
+  ],
+  "timestamp": "2025-11-06T16:51:54.052932"
+}

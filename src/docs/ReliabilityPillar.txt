@@ -1,0 +1,281 @@
+Reliability Pillar
+RE:01 - Focus Your Workload Design on Simplicity and Efficiency
+Core Objective:
+Design lean, efficient, and resilient workloads by reducing unnecessary complexity and aligning all design choices with business requirements.
+Key Recommendations
+1. Collaborate with Stakeholders
+o Define critical flows and assign criticality levels.
+o Establish functional/nonfunctional requirements (availability, scalability, latency).
+o Decompose workloads; eliminate redundant components.
+o Conduct failure mode analysis and set realistic reliability targets (RTO, RPO, MTBF).
+2. Favor Simpler Design Choices
+o Prioritize clarity and avoid overengineering.
+o Prefer PaaS over IaaS for reduced management burden.
+o Use asynchronous messaging and abstraction layers.
+o Centralize cross-cutting concerns (e.g., authentication).
+o Adopt patterns that suit context - microservices only when justified.
+3. Develop Just Enough Code
+o Leverage platform tools (serverless, low-code, no-code).
+o Use frameworks, pair programming, and code reviews.
+o Remove dead code; ensure all code is covered by tests.
+4. Select the Right Data Store
+o Use polyglot persistence - match data types to the right database (SQL, document, time-series, search).
+o Optimize for availability over strict consistency when appropriate.
+o Align database choices with developer expertise to avoid unnecessary overhead.
+
+
+RE:02 - Identify and Rate User and System Flows
+Core Objective:
+Map and assess every user and system flow in your workload to understand their criticality and business impact.
+Key Recommendations
+1. Identify All Flows
+o Interview stakeholders and review system documentation.
+o Observe real workload behavior using logs and metrics.
+o Define start/end points, steps, exceptions, and visualize with diagrams.
+o Continuously refine mappings as designs evolve.
+2. Map to Business Processes
+o Link flows to specific business processes (e.g., order fulfillment).
+o Conduct interviews to confirm operational importance.
+o Monitor live usage to validate mappings.
+3. Define Ownership
+o Assign a process owner responsible for flow reliability.
+o Use RACI or RAM matrices to document responsibilities and stakeholders.
+4. Establish Escalation Paths
+o Document resolution paths for flow-related incidents.
+o Limit escalation layers to ensure timely response.
+5. Assess Business Impact
+o Quantify positive (efficiency, revenue, satisfaction) and negative (losses, reputation) impacts.
+o Define capacity and availability expectations for each flow.
+6. Assign a criticality rating to each flow (required)
+o Use a simple, consistent scale driven by business impact to prioritize work. The guidance defines:
+1. High criticality: Integral to core business (customer experience, financial transactions, security, health/safety). Failure has significant immediate or long-term negative effects (revenue loss, trust, legal). Prioritize resiliency here first.
+2. Medium criticality: Important to full system function but not directly tied to core customer/mission-critical ops; issues are often retryable or manageable without immediate external impact.
+3. Low criticality: Ancillary/optional tasks with minimal direct business impact (e.g., nightly log transfers, optional feedback flows)
+7. Tie flow scoring to targets & operations
+o Use the flow scores/criticality to drive design decisions, testing focus, incident response, and set per-flow reliability targets (SLO/SLI, RTO/RPO). This linkage is explicitly recommended when defining reliability targets.
+
+
+RE:03 - Perform Failure Mode Analysis (FMA)
+Objective:
+Identify potential failure points, assess their blast radius, and plan mitigations so your workload can tolerate or gracefully recover from failures.
+Key Recommendations
+1. Decompose the workload
+o Break down architecture into components (ingress, compute, data, storage, networking, authentication, messaging).
+o Overlay critical flows to identify all components used and evaluate their criticality.
+2. Identify dependencies
+o Catalog internal (APIs, Key Vault) and external (Entra ID, ExpressRoute, third-party APIs) dependencies.
+o Capture SLAs, scaling limits, and include these in flow documentation.
+3. Evaluate failure points
+o Examine each component for possible failure modes: regional/zone outage, service outage, DDoS, misconfiguration, operator error, maintenance, overload.
+o Document effect on user experience and expected behavior.
+o Assess likelihood and impact to prioritize mitigations.
+4. Plan mitigations
+o Build resiliency: redundancy in compute/data/network, use microservices or isolation.
+o Design for degraded performance: reroute flows, disable noncritical features, maintain partial function.
+o Classify dependencies: strong (must align SLAs with app) vs. weak (optional). Reduce unnecessary coupling.
+5. Implement detection
+o Automate monitoring and alerting via Azure Monitor, Log Analytics, App Insights, Container/Network/VM Insights.
+o Ensure redundancy in operations processes to avoid missed alerts.
+6. Document outcomes
+o Produce FMA documentation detailing components, dependencies, mitigations, and severity/likelihood ratings.
+o Update regularly; refine through chaos testing (Azure Chaos Studio).
+
+RE:04 - Define Reliability and Recovery Targets
+Objective:
+Establish quantifiable metrics that capture reliability expectations (availability, recoverability, correctness) and use them to drive design and health modeling.
+Key Recommendations
+1. Collaborate with Stakeholders
+o Derive reliability targets through joint workshops; align on realistic expectations and cost trade-offs.
+o Use these to justify design and operational priorities.
+2. Core Metrics
+o SLO (Service Level Objective): target performance or availability level.
+o SLI (Service Level Indicator): quantitative measurement for SLO compliance.
+o SLA (Service Level Agreement): contractual commitment with financial implications.
+o MTTR, MTBF, RTO, RPO define recovery effectiveness.
+3. Reliability Targets
+o Availability targets (e.g., 99.9%-99.999%) based on business tolerance for downtime.
+o Correctness targets - ensure function accuracy under load or failure.
+o Recovery targets - quantify resilience and recovery capabilities using RTO/RPO.
+4. SLO Design Practices
+o Set SLOs holistically for workloads, not just per component.
+o Account for dependencies, operations, patching, and customer impact.
+o Revisit targets based on monitoring and post-incident analysis.
+5. Common SLO Categories
+o Success rate, latency, capacity, availability, throughput.
+o Define measurable, customer-centric values for each.
+6. Implementation
+o Establish dashboards tracking SLO compliance.
+o Use SLOs to guide auto-rollback, alerting, and prioritization of reliability improvements.
+
+
+RE:05 - Add Redundancy at Different Levels
+Objective:
+Ensure reliability by introducing redundancy across compute, data, and network layers so individual resource failures don't affect workload continuity.
+Key Recommendations
+1. Use Managed and Serverless Services
+o Prefer PaaS/SaaS/serverless options that include built-in redundancy (e.g., Entra ID, DNS, Key Vault).
+o Choose services with abstracted capacity models (like Cosmos DB or Databricks) to simplify redundancy and failover management.
+2. Implement Multi-Instance Redundancy
+o Deploy multiple instances of critical components (VM Scale Sets, multi-region App Service).
+o Keep compute stateless so instances can fail independently.
+o Balance redundancy across zones or regions per flow's reliability target.
+3. Design for Data Redundancy
+o Use geo-replication for resilience to regional outages.
+o Understand sync vs async replication trade-offs (latency vs durability).
+o Automate failover for databases (SQL MI, Cosmos DB).
+o Apply partitioning/sharding or CQRS to isolate failures and scale reads.
+o Embrace eventual consistency when acceptable for availability.
+4. Plan Network Redundancy
+o Use multiple ExpressRoute circuits, redundant gateways, and distributed traffic management.
+o Employ hub-and-spoke or mesh topologies to avoid single network bottlenecks.
+o Combine Azure Front Door, Traffic Manager, and Load Balancer for multi-region resiliency.
+5. Balance Trade-offs
+o More redundancy increases cost and complexity; review regularly.
+o Geo-redundancy adds latency but protects against large-scale events.
+o Tailor redundancy level to each flow's criticality rather than a one-size-fits-all approach.
+
+RE:06 - Implement a Timely and Reliable Scaling Strategy
+Objective:
+Design scaling approaches-horizontal, vertical, or automatic-that keep workloads responsive and reliable under varying demand while minimizing manual effort.
+Key Recommendations
+1. Identify Load Patterns
+o Categorize flows as static, predictable, irregular, or unpredictable.
+o Schedule scale-up/down for known patterns; use autoscale for unpredictable spikes.
+2. Design for Horizontal Scalability
+o Make applications stateless to avoid instance affinity.
+o Use queue-based load distribution (Competing Consumers pattern).
+o Refactor long-running tasks into smaller units (Pipes and Filters pattern).
+3. Adapt Scaling per Component
+o Document non-scalable elements (like monolithic databases).
+o Avoid overloading downstream services when scaling upstream components.
+o Address bottlenecks first-scaling won't fix performance constraints in stateful systems.
+4. Automate Scaling
+o Integrate autoscaling into Infrastructure as Code (IaC).
+o Automate scaling via metrics tied to business KPIs (orders/hour, queue length).
+o Consider throttling or scheduled scale-up for sudden bursts.
+5. Select the Right Technology
+o Use SaaS/serverless services with built-in scaling (e.g., Azure Functions, Entra ID).
+o Favor PaaS services offering configurable scaling (e.g., Cosmos DB throughput).
+6. Define Scale Units
+o Group resources logically for scaling-individual, component-level, or full-solution.
+o Apply consistent scaling increments for simplicity and predictability.
+RE:07 - Strengthen Resiliency with Self-Preservation and Self-Healing
+Objective:
+Design workloads that maintain functionality during failures (self-preservation) and automatically recover without manual intervention (self-healing).
+Key Recommendations
+1. Design for Redundancy
+o Eliminate single points of failure with redundant compute, storage, and network resources
+o Deploy across multiple availability zones or regions, choosing between active-active or active-passive configurations
+o Use managed services with built-in resiliency where possible
+2. Design for Self-Preservation
+o Apply Bulkhead and Deployment Stamps patterns to isolate components and limit blast radius
+o Favor loosely coupled architectures using asynchronous communication (queues, service bus)
+o Partition workloads to reduce cascading failures and improve containment
+3. Design for Self-Healing
+o Automate failure detection, remediation, and replacement using telemetry and health probes
+o Enable auto-failover and auto-restart for compute, databases, and containers
+o Use checkpoints and idempotent operations so long-running tasks can resume safely
+o Trigger recovery scripts or workflows via PowerShell, Azure Functions, or webhooks
+4. Implement Graceful Degradation
+o Maintain core functionality when dependencies fail
+o Display cached or read-only data during downtime
+o Deactivate noncritical features dynamically to preserve essential flows
+5. Handle Transient Faults
+o Use retry policies, exponential back-off, and circuit breaker patterns
+o Employ resilient SDKs and services with built-in transient fault handling
+6. Implement Background Jobs
+o Offload non-interactive or time-consuming tasks to background processes
+o Improve user responsiveness by decoupling CPU-intensive, I/O-heavy, or long-running jobs from the UI
+RE:08 - Test for Resiliency and Availability Scenarios
+Objective:
+Continuously validate reliability through structured testing, chaos engineering, and fault injection to confirm the workload behaves as expected under stress or component failure.
+Key Recommendations
+1. Establish a Reliability Testing Strategy
+o Perform regular tests after design changes or releases.
+o Automate testing to ensure repeatability and consistent coverage.
+o Adopt a shift-left approach-test early in the development lifecycle.
+o Maintain parity between test and production environments.
+2. Conduct Comprehensive Testing
+o Validate SLOs, RTOs, and RPOs with real data.
+o Include backup restore tests and DR simulations.
+o Test handling of transient faults, dependency failures, and scaling behavior.
+o Evaluate graceful degradation and self-healing mechanisms.
+3. Use Fault Injection and Chaos Engineering
+o Proactively inject failures to test recovery and fault tolerance.
+o Simulate real-world disruptions-service unavailability, latency spikes, or resource exhaustion.
+o Follow chaos experiment steps: define hypothesis, measure baseline, inject fault, observe results, document, and act.
+o Validate and update the Failure Mode Analysis (RE:03) outcomes with each experiment.
+4. Leverage Planned and Unplanned Outages
+o Use maintenance windows to test unaffected components or confirm post-maintenance stability.
+o During outages, prioritize recovery, capture root cause, and enhance monitoring and documentation.
+5. Adopt Guardrails and Mitigation Patterns
+o Apply Circuit Breaker, Throttling, and Bulkhead patterns to limit fault propagation.
+o Design for blast radius containment and operational continuity.
+6. Institutionalize Chaos Engineering
+o Treat chaos testing as an ongoing cultural practice, not a one-off activity.
+o Periodically revisit architecture, processes, and metrics to eliminate weak points and reduce technical debt.
+RE:09 - Implement Structured, Tested, and Documented BCDR Plans
+Objective:
+Develop and maintain a comprehensive Business Continuity and Disaster Recovery (BCDR) strategy that aligns with reliability targets and covers all components and recovery stages.
+Key Recommendations
+1. Maintain a Disaster Recovery Plan
+o Define what constitutes a disaster vs. minor failure.
+o Base the plan on Failure Mode Analysis and update regularly.
+o Review every six months; store securely and accessibly.
+o Clearly assign roles: declaration, communication, operations, testing, RCA, and closure.
+o Define escalation paths and ensure all stakeholders are informed.
+2. Document Recovery Procedures
+o Capture component-, data-, and workload-level recovery steps.
+o List dependencies, prerequisites, and scripts.
+o Document order of operations (e.g., recover databases before apps).
+o Define responsibilities between your team and cloud provider.
+o Include post-failover actions like DNS, routing, and connection updates.
+3. Automate and Validate Recovery
+o Automate deployments with DevOps pipelines and declarative scripts.
+o Use retry and circuit-breaker logic to handle automation errors.
+o Test automation thoroughly to avoid false positives.
+o Monitor automated actions and have trained operators ready to intervene.
+4. Separate Failback from Failover
+o Maintain an independent failback plan mirroring DR structure.
+o Document manual steps for reversal.
+o Tailor failback timing and necessity based on workload and business design.
+5. Conduct Regular DR Drills
+o Perform at least one production DR drill annually.
+o Supplement with tabletop and nonproduction drills.
+o Measure RTO/RPO compliance and update the plan accordingly.
+o Treat drills as training to build "muscle memory" for operators and validate plan accuracy.
+RE:10 - Measure and Model the Solution's Health Indicators
+Objective:
+Implement a comprehensive monitoring and alerting strategy that detects workload health changes, triggers automated recovery, and supports continuous reliability improvement.
+Key Recommendations
+1. Implement a Unified Monitoring Strategy
+o Enable logging and metrics collection across all cloud resources.
+o Centralize logs in Log Analytics or equivalent workspaces.
+o Differentiate between metrics, logs, and traces; collect all three.
+o Apply structured logging and retention policies that meet compliance needs.
+o Configure alerts for state transitions (healthy ? degraded ? unhealthy).
+o Continuously refine thresholds using dynamic baselines.
+o Visualize real-time workload health and integrate with Azure Monitor, Service Health, and Resource Health.
+o Include backup and recovery monitoring to validate RPO and detect failures.
+2. Monitor Applications
+o Use health probes or synthetic checks from multiple geographic regions.
+o Log at service boundaries with correlation IDs for end-to-end traceability.
+o Implement asynchronous logging to prevent UI blocking.
+o Separate diagnostic logs from audit logs.
+o Combine white-box monitoring (internal metrics) and black-box monitoring (external behavior).
+o Correlate telemetry to improve root cause analysis and trend detection.
+3. Monitor Data and Storage
+o Track storage availability; falling below 100% signals write failures or bottlenecks.
+o Monitor key database metrics: query duration, timeouts, wait times, locks, and memory pressure.
+o Correlate compute and storage telemetry to pinpoint cross-layer issues.
+4. Monitor Network Traffic
+o Perform synthetic connectivity and latency tests across critical paths.
+o Collect and analyze latency, packet loss, and bandwidth metrics.
+o Detect anomalies, blocked traffic, and bandwidth hotspots.
+o Maintain full visibility from endpoint to service for rapid troubleshooting.
+5. Health Modeling and Continuous Improvement
+o Build a health model defining healthy, degraded, and unhealthy states.
+o Tie alerts and automation to health transitions for proactive remediation.
+o Use post-incident data to refine monitoring thresholds and system models.
+o Continuously evolve monitoring and alerting practices as workloads scale.
+

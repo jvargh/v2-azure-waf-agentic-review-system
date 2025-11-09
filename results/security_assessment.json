@@ -1,0 +1,353 @@
+{
+  "overall_score": 22,
+  "domain_scores": {
+    "SE01": {
+      "score": 20,
+      "title": "Establish a Security Baseline"
+    },
+    "SE02": {
+      "score": 20,
+      "title": "Maintain a Secure Development Lifecycle"
+    },
+    "SE03": {
+      "score": 15,
+      "title": "Classify and Label Data Sensitivity"
+    },
+    "SE04": {
+      "score": 10,
+      "title": "Create Intentional Segmentation and Perimeters"
+    },
+    "SE05": {
+      "score": 15,
+      "title": "Implement Conditional Identity and Access Management"
+    },
+    "SE06": {
+      "score": 10,
+      "title": "Isolate, Filter, and Control Network Traffic"
+    },
+    "SE07": {
+      "score": 30,
+      "title": "Encrypt Data with Modern Methods"
+    },
+    "SE08": {
+      "score": 10,
+      "title": "Harden Workload Components"
+    },
+    "SE09": {
+      "score": 10,
+      "title": "Protect Application Secrets"
+    },
+    "SE10": {
+      "score": 25,
+      "title": "Implement Holistic Threat Detection and Monitoring"
+    },
+    "SE11": {
+      "score": 15,
+      "title": "Establish a Comprehensive Security Testing Regimen"
+    },
+    "SE12": {
+      "score": 5,
+      "title": "Define and Exercise Incident Response Procedures"
+    }
+  },
+  "recommendations": [
+    {
+      "title": "Implement Azure Key Vault and Secret Rotation",
+      "description": "Move all sensitive secrets (service-to-service credentials, API keys, database passwords) from Kubernetes secrets and environment variables to Azure Key Vault. Automate rotation for secrets, configure managed access policies, and enforce audit logging. This directly mitigates risk of credential exposure and supports PCI-DSS/SOC2 compliance.",
+      "priority": 1,
+      "impact_score": 9,
+      "pillar_codes": [
+        "SE09",
+        "SE05",
+        "SE01"
+      ],
+      "owner": "Cloud Security Team",
+      "timeline": "30 days",
+      "severity": 1
+    },
+    {
+      "title": "Establish Robust Network Segmentation and Enable Network Security Controls",
+      "description": "Segregate workloads into dedicated namespaces per team and service function. Implement Kubernetes network policies to restrict east-west traffic. Deploy Azure Firewall for outbound filtering, and replace public AKS access with private endpoints. Add Application Gateway/WAF for ingress. This reduces the attack surface and prevents lateral movement during a breach.",
+      "priority": 1,
+      "impact_score": 10,
+      "pillar_codes": [
+        "SE04",
+        "SE06",
+        "SE01"
+      ],
+      "owner": "Cloud Infrastructure Team",
+      "timeline": "45 days",
+      "severity": 1
+    },
+    {
+      "title": "Integrate Microsoft Defender for Containers and Mandatory Vulnerability Scanning in Pipelines",
+      "description": "Enable Microsoft Defender for Containers on AKS and Azure Container Registry to detect threats in real-time. Integrate automated image vulnerability scanning (including outdated dependencies, base images, and misconfigurations) in CI/CD pipelines. Pin Docker image versions and remediate deprecated APIs. This prevents supply-chain attacks, increases workload hardening and code security.",
+      "priority": 1,
+      "impact_score": 8,
+      "pillar_codes": [
+        "SE08",
+        "SE02",
+        "SE10"
+      ],
+      "owner": "DevOps Team",
+      "timeline": "30 days",
+      "severity": 1
+    },
+    {
+      "title": "Implement Data Classification, Encryption, and Compliance Policies",
+      "description": "Label and classify all data stores containing PII and payment data. Enforce encryption at rest using customer-managed keys (CMK) for Cosmos DB, SQL Database, and Redis. Assign Azure Policy for PCI-DSS/SOC 2 baseline enforcement and audit compliance regularly. This remediates regulatory gaps and mitigates data breach impacts.",
+      "priority": 2,
+      "impact_score": 8,
+      "pillar_codes": [
+        "SE03",
+        "SE07",
+        "SE01"
+      ],
+      "owner": "Compliance & Data Governance Team",
+      "timeline": "60 days",
+      "severity": 2
+    },
+    {
+      "title": "Define and Drill Incident Response and Disaster Recovery Plans",
+      "description": "Document incident response runbooks with clear severity triage, contacts, and escalation workflows. Implement automated backups for all stateful resources and test restore procedures quarterly. Set up multi-region disaster recovery for business-critical services. These actions ensure business continuity and timely recovery from security incidents.",
+      "priority": 2,
+      "impact_score": 9,
+      "pillar_codes": [
+        "SE12",
+        "SE01",
+        "SE07"
+      ],
+      "owner": "Platform Operations Team",
+      "timeline": "90 days",
+      "severity": 2
+    },
+    {
+      "title": "Enforce Least Privilege RBAC and Conditional Access Policies",
+      "description": "Apply role segregation by removing cluster-admin access from developers, defining custom Azure RBAC and Kubernetes roles per team. Integrate Microsoft Entra Workload ID for microservices and enforce conditional access (MFA, geographic restrictions). Periodically audit and rotate non-human identities. This prevents privilege escalation and unauthorized access.",
+      "priority": 2,
+      "impact_score": 7,
+      "pillar_codes": [
+        "SE05",
+        "SE04",
+        "SE01"
+      ],
+      "owner": "Cloud Security Team",
+      "timeline": "45 days",
+      "severity": 2
+    }
+  ],
+  "maturity": {
+    "pillar": "security",
+    "overall_maturity_percent": 24.0,
+    "practice_scores": [
+      {
+        "code": "SE01",
+        "score": 0,
+        "weight": 0.09,
+        "matched_signals": [],
+        "coverage": 0.0,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "SE02",
+        "score": 0,
+        "weight": 0.09,
+        "matched_signals": [],
+        "coverage": 0.0,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "SE03",
+        "score": 1,
+        "weight": 0.08,
+        "matched_signals": [
+          "data classification"
+        ],
+        "coverage": 0.25,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "SE04",
+        "score": 2,
+        "weight": 0.09,
+        "matched_signals": [
+          "segmentation",
+          "isolation"
+        ],
+        "coverage": 0.4,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "SE05",
+        "score": 0,
+        "weight": 0.1,
+        "matched_signals": [],
+        "coverage": 0.0,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "SE06",
+        "score": 2,
+        "weight": 0.1,
+        "matched_signals": [
+          "azure firewall",
+          "ddos protection",
+          "web application firewall"
+        ],
+        "coverage": 0.5,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "SE07",
+        "score": 2,
+        "weight": 0.08,
+        "matched_signals": [
+          "encryption at rest",
+          "https"
+        ],
+        "coverage": 0.4,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "SE08",
+        "score": 1,
+        "weight": 0.08,
+        "matched_signals": [
+          "patching"
+        ],
+        "coverage": 0.2,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "SE09",
+        "score": 2,
+        "weight": 0.07,
+        "matched_signals": [
+          "key vault",
+          "managed identity"
+        ],
+        "coverage": 0.5,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "SE10",
+        "score": 3,
+        "weight": 0.07,
+        "matched_signals": [
+          "sentinel",
+          "azure monitor",
+          "siem",
+          "log analytics"
+        ],
+        "coverage": 0.667,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "SE11",
+        "score": 1,
+        "weight": 0.07,
+        "matched_signals": [
+          "chaos engineering"
+        ],
+        "coverage": 0.25,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "SE12",
+        "score": 1,
+        "weight": 0.08,
+        "matched_signals": [
+          "incident response"
+        ],
+        "coverage": 0.2,
+        "mode": "legacy-proportional"
+      }
+    ],
+    "recommendations": [],
+    "gaps": [
+      {
+        "id": "se-gap-01",
+        "label": "Missing security baseline",
+        "detail": "Architecture description does not mention alignment to a security baseline or defined policies.",
+        "practice": "SE01",
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": [
+          "baseline",
+          "policy",
+          "governance"
+        ]
+      },
+      {
+        "id": "se-gap-02",
+        "label": "No conditional access or MFA",
+        "detail": "Identity controls do not mention MFA or conditional access enforcement.",
+        "practice": "SE05",
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": [
+          "mfa",
+          "conditional access",
+          "identity"
+        ]
+      },
+      {
+        "id": "se-gap-03",
+        "label": "Public endpoints without protection",
+        "detail": "Public-facing services described without WAF, firewall, or egress restrictions.",
+        "practice": "SE06",
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": [
+          "network",
+          "waf",
+          "firewall"
+        ]
+      },
+      {
+        "id": "se-gap-04",
+        "label": "Secrets stored in configuration",
+        "detail": "Credentials or secrets stored in application configuration or code.",
+        "practice": "SE09",
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": [
+          "key vault",
+          "secret",
+          "rotation"
+        ]
+      },
+      {
+        "id": "se-gap-05",
+        "label": "Monitoring gaps",
+        "detail": "Architecture lacks centralized monitoring, alerting, or threat detection tooling.",
+        "practice": "SE10",
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": [
+          "monitoring",
+          "sentinel",
+          "siem"
+        ]
+      }
+    ],
+    "matched_gap_count": 0,
+    "unmatched_gap_count": 5,
+    "framework": null
+  },
+  "mcp_references": [
+    {
+      "title": "Azure Documentation",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/framework/security/overview"
+    },
+    {
+      "title": "Azure Documentation",
+      "url": "https://learn.microsoft.com/en-us/azure/security/fundamentals/network-best-practices"
+    },
+    {
+      "title": "Azure Documentation",
+      "url": "https://learn.microsoft.com/en-us/azure/security/fundamentals/identity-management-best-practices"
+    }
+  ],
+  "timestamp": "2025-11-05T21:14:51.432550"
+}

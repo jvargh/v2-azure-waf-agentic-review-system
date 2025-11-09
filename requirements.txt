@@ -1,16 +1,73 @@
-# Microsoft Agent Framework
-semantic-kernel>=1.0.0
-azure-search-documents>=11.4.0
+# Azure Well-Architected Framework Reliability Agent
+# Python package requirements for enterprise-grade Azure assessment
+
+# Core Python Libraries
+asyncio>=3.4.3
+typing-extensions>=4.8.0
+
+# Azure SDK and Authentication
 azure-identity>=1.15.0
+azure-core>=1.29.5
+azure-common>=1.1.28
+
+# Microsoft Agent Framework (MAF) - Future packages
+# Note: These packages are not yet released publicly
+# azure-ai-agent>=1.0.0  # Microsoft Agent Framework core
+# azure-ai-foundry>=1.0.0  # Azure AI Foundry integration
+# azure-ai-evaluation>=1.0.0  # AI evaluation capabilities
+
+# Current Azure AI packages
+azure-ai-inference==1.0.0b9  # pinned to last available beta; stable >=1.0.0 not published yet
+azure-ai-projects==1.1.0b4  # pinned latest beta; stable >=1.1.0 not yet universally available
 azure-mgmt-resource>=23.0.0
+
+# Azure OpenAI SDK (Alternative/Fallback)
 openai>=1.0.0
-pydantic>=2.0.0
-requests>=2.31.0
-beautifulsoup4>=4.12.0
-aiohttp>=3.9.0
+
+# Environment and Configuration Management
 python-dotenv>=1.0.0
-fastapi>=0.104.0
-uvicorn>=0.24.0
+pydantic>=2.0.0
+
+# Async File Operations
+aiofiles>=23.2.0
+
+# HTTP and API Clients
+httpx>=0.25.2
+aiohttp>=3.9.0
+requests>=2.31.0
+
+# JSON and Data Processing
+orjson>=3.9.10  # Fast JSON processing
+jsonschema>=4.20.0  # JSON validation
+
+# Model Context Protocol (MCP) Tools
+# Note: These are conceptual packages for MCP integration
+# mcp>=1.0.0  # MCP client (if available)
+
+# Web scraping for documentation access
+beautifulsoup4>=4.12.0
+lxml>=4.9.3
+
+# Development and Testing Dependencies
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
-aiofiles>=23.2.0
+pytest-mock>=3.12.0
+black>=23.11.0  # Code formatting
+mypy>=1.7.1  # Type checking
+
+# Optional: Enhanced logging and monitoring
+structlog>=23.2.0
+rich>=13.7.0  # Rich console output
+
+# Optional: Web framework (for future API endpoints)
+fastapi>=0.104.0
+uvicorn>=0.24.0
+motor>=3.3.1  # Async MongoDB driver for persistence
+
+# Optional: Documentation tools
+# mkdocs>=1.5.3
+# mkdocs-material>=9.4.8
+
+# Security and validation
+cryptography>=41.0.7
+certifi>=2023.11.17

@@ -1,0 +1,425 @@
+{
+  "overall_score": 0,
+  "domain_scores": {
+    "CO01": {
+      "score": 35,
+      "title": "Create a culture of financial responsibility"
+    },
+    "CO02": {
+      "score": 30,
+      "title": "Create and maintain a cost model"
+    },
+    "CO03": {
+      "score": 20,
+      "title": "Collect and review cost data"
+    },
+    "CO04": {
+      "score": 20,
+      "title": "Set spending guardrails"
+    },
+    "CO05": {
+      "score": 25,
+      "title": "Get the best rates from providers"
+    },
+    "CO06": {
+      "score": 40,
+      "title": "Align usage to billing increments"
+    },
+    "CO07": {
+      "score": 30,
+      "title": "Optimize component costs"
+    },
+    "CO08": {
+      "score": 20,
+      "title": "Optimize environment costs"
+    },
+    "CO09": {
+      "score": 25,
+      "title": "Optimize flow costs"
+    },
+    "CO10": {
+      "score": 35,
+      "title": "Optimize data costs"
+    },
+    "CO11": {
+      "score": 30,
+      "title": "Optimize code costs"
+    },
+    "CO12": {
+      "score": 25,
+      "title": "Optimize scaling costs"
+    },
+    "CO13": {
+      "score": 35,
+      "title": "Optimize personnel time"
+    },
+    "CO14": {
+      "score": 20,
+      "title": "Consolidate resources and responsibility"
+    }
+  },
+  "recommendations": [
+    {
+      "title": "Implement Azure Cost Management with Budgets and Alerts",
+      "description": "Configure Azure Cost Management and set budgets for production, test, and development environments to monitor spend, generate alerts on threshold breaches, and drive cost accountability across development teams.",
+      "priority": "Critical",
+      "impact_score": 10,
+      "pillar_codes": [
+        "CO01",
+        "CO03",
+        "CO04"
+      ],
+      "severity": 1
+    },
+    {
+      "title": "Eliminate Unused Resources and Orphaned Persistent Volumes",
+      "description": "Regularly audit for and clean up orphaned persistent volumes, unused load balancer rules, and legacy component deployments to avoid ongoing charges for stale resources.",
+      "priority": "Critical",
+      "impact_score": 9,
+      "pillar_codes": [
+        "CO07",
+        "CO14"
+      ],
+      "severity": 1
+    },
+    {
+      "title": "Right-Size Non-Production Environments",
+      "description": "Review and reduce resource allocations for development and QA clusters. Differentiate production from non-production with smaller node pools, cheaper storage tiers, and dev/test pricing to minimize spend.",
+      "priority": "High",
+      "impact_score": 8,
+      "pillar_codes": [
+        "CO08",
+        "CO06",
+        "CO07"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Enable Cluster Autoscaler and Improve Scaling Policies",
+      "description": "Activate AKS cluster autoscaler and expand horizontal pod autoscaling to all microservices, tuning min/max replica counts based on load, aligning scaling with actual demand and billing increments to lower costs.",
+      "priority": "High",
+      "impact_score": 8,
+      "pillar_codes": [
+        "CO12",
+        "CO06"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Switch to Consumption-Based and Autoscale Tiers for Key Services",
+      "description": "Configure Azure Cosmos DB for autoscale throughput; move Redis and other services to scalable or consumption-based SKUs. Dynamically provision during peak traffic only.",
+      "priority": "High",
+      "impact_score": 8,
+      "pillar_codes": [
+        "CO05",
+        "CO07",
+        "CO10"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Use Azure Reservations, Savings Plans, and Hybrid Benefit",
+      "description": "Leverage 1- or 3-year Azure Reserved Instances, Savings Plans for VMs, and Azure Hybrid Benefit for eligible workloads to secure discounted rates and optimize compute spend.",
+      "priority": "Medium",
+      "impact_score": 7,
+      "pillar_codes": [
+        "CO05",
+        "CO07"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Set Resource Quotas and Policies for Governance",
+      "description": "Introduce Azure Policy assignments and AKS resource quotas to restrict resource sprawl, enforce naming/tagging standards, and prevent accidental over-provisioning at namespace or subscription level.",
+      "priority": "Critical",
+      "impact_score": 10,
+      "pillar_codes": [
+        "CO04",
+        "CO14",
+        "CO01"
+      ],
+      "severity": 1
+    },
+    {
+      "title": "Tag Resources for Team Accountability and Chargeback",
+      "description": "Create and enforce a resource tagging strategy (e.g. owner, environment, team) to enable cost attribution, reporting, and internal chargebacks, fostering shared responsibility for spend.",
+      "priority": "High",
+      "impact_score": 8,
+      "pillar_codes": [
+        "CO01",
+        "CO14",
+        "CO03"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Optimize Log Analytics and Application Insights Costs",
+      "description": "Reduce Log Analytics workspace data retention, implement daily caps on Application Insights, and configure sampling to lower observability costs while retaining key insights.",
+      "priority": "Medium",
+      "impact_score": 6,
+      "pillar_codes": [
+        "CO07",
+        "CO10"
+      ],
+      "severity": 3
+    },
+    {
+      "title": "Deploy Automated Backup Policies for Stateful Data",
+      "description": "Configure automated backup and retention policies for databases (Cosmos DB, SQL, Redis); align backup frequency and retention to business RPO/RTO, minimizing unnecessary storage costs.",
+      "priority": "High",
+      "impact_score": 8,
+      "pillar_codes": [
+        "CO10",
+        "CO04"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Move Microservices to Separate Namespaces and Resource Groups",
+      "description": "Segment AKS cluster namespaces and group microservices/resources by team or purpose, enabling better quota enforcement, improved governance, and more targeted cost allocation.",
+      "priority": "Medium",
+      "impact_score": 6,
+      "pillar_codes": [
+        "CO14",
+        "CO04"
+      ],
+      "severity": 3
+    },
+    {
+      "title": "Automate Container Image Patch and Retention Policies",
+      "description": "Enforce automated image patching, set up vulnerability scanning, and implement container registry retention policies to reduce obsolete image storage costs and improve security posture.",
+      "priority": "Medium",
+      "impact_score": 7,
+      "pillar_codes": [
+        "CO07",
+        "CO13"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Train Development Teams in Cloud Cost Fundamentals",
+      "description": "Invest in Azure cloud cost management training for development, DevOps, and operations teams. Build a consistent FinOps culture and embed cost awareness in sprint/release process.",
+      "priority": "Medium",
+      "impact_score": 6,
+      "pillar_codes": [
+        "CO01"
+      ],
+      "severity": 3
+    }
+  ],
+  "maturity": {
+    "pillar": "cost",
+    "overall_maturity_percent": 20.98,
+    "practice_scores": [
+      {
+        "code": "CO01",
+        "score": 0,
+        "weight": 0.08,
+        "matched_signals": [],
+        "coverage": 0.0,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "CO02",
+        "score": 0,
+        "weight": 0.09,
+        "matched_signals": [],
+        "coverage": 0.0,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "CO03",
+        "score": 1,
+        "weight": 0.08,
+        "matched_signals": [
+          "cost management",
+          "azure cost"
+        ],
+        "coverage": 0.286,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "CO04",
+        "score": 2,
+        "weight": 0.07,
+        "matched_signals": [
+          "policy",
+          "rbac",
+          "governance"
+        ],
+        "coverage": 0.429,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "CO05",
+        "score": 1,
+        "weight": 0.08,
+        "matched_signals": [
+          "spot"
+        ],
+        "coverage": 0.143,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "CO06",
+        "score": 0,
+        "weight": 0.06,
+        "matched_signals": [],
+        "coverage": 0.0,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "CO07",
+        "score": 2,
+        "weight": 0.07,
+        "matched_signals": [
+          "orphaned",
+          "legacy",
+          "unused"
+        ],
+        "coverage": 0.429,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "CO08",
+        "score": 1,
+        "weight": 0.07,
+        "matched_signals": [
+          "environment"
+        ],
+        "coverage": 0.143,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "CO09",
+        "score": 1,
+        "weight": 0.06,
+        "matched_signals": [
+          "feature"
+        ],
+        "coverage": 0.167,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "CO10",
+        "score": 2,
+        "weight": 0.08,
+        "matched_signals": [
+          "retention",
+          "backup",
+          "replication"
+        ],
+        "coverage": 0.429,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "CO11",
+        "score": 2,
+        "weight": 0.07,
+        "matched_signals": [
+          "performance",
+          "caching",
+          "optimization"
+        ],
+        "coverage": 0.429,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "CO12",
+        "score": 1,
+        "weight": 0.08,
+        "matched_signals": [
+          "autoscale"
+        ],
+        "coverage": 0.143,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "CO13",
+        "score": 2,
+        "weight": 0.06,
+        "matched_signals": [
+          "ci/cd",
+          "debugging",
+          "observability"
+        ],
+        "coverage": 0.429,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "CO14",
+        "score": 0,
+        "weight": 0.07,
+        "matched_signals": [],
+        "coverage": 0.0,
+        "mode": "legacy-proportional"
+      }
+    ],
+    "recommendations": [],
+    "gaps": [
+      {
+        "id": null,
+        "label": null,
+        "detail": null,
+        "practice": null,
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": []
+      },
+      {
+        "id": null,
+        "label": null,
+        "detail": null,
+        "practice": null,
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": []
+      },
+      {
+        "id": null,
+        "label": null,
+        "detail": null,
+        "practice": null,
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": []
+      },
+      {
+        "id": null,
+        "label": null,
+        "detail": null,
+        "practice": null,
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": []
+      },
+      {
+        "id": null,
+        "label": null,
+        "detail": null,
+        "practice": null,
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": []
+      }
+    ],
+    "matched_gap_count": 0,
+    "unmatched_gap_count": 5,
+    "framework": null
+  },
+  "mcp_references": [
+    {
+      "title": "Cost optimization checklist",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/checklist/cost-optimization"
+    },
+    {
+      "title": "Cost optimization in the Microsoft Azure Well-Architected Framework",
+      "url": "https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/"
+    },
+    {
+      "title": "Five pillars of the Azure Well-Architected Framework - Cost optimization",
+      "url": "https://learn.microsoft.com/en-us/azure/well-architected/pillars"
+    }
+  ],
+  "timestamp": "2025-11-05T11:24:53.322562"
+}

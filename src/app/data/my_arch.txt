@@ -1,0 +1,205 @@
+Enterprise Microservices Architecture on Azure Kubernetes Service (AKS)
+==================================================================================
+
+OVERVIEW
+--------
+Fabrikam Drone Delivery Service - A complex enterprise application for managing a fleet of drone aircraft. 
+Businesses register with the service, and users request drones to pick up goods for delivery. The back-end 
+system assigns drones and provides real-time tracking with continuously updated estimated delivery times.
+
+ARCHITECTURE COMPONENTS
+-----------------------
+
+Compute & Orchestration:
+- Azure Kubernetes Service (AKS) cluster running in West US 2 region
+- 3 node pools: system node pool (3 nodes, Standard_DS3_v2), user node pool (5 nodes, Standard_DS4_v2), spot node pool (2 nodes, Standard_DS2_v2)
+- Kubernetes version 1.28.3
+- Managed NGINX ingress controller through application routing add-on
+- No cluster autoscaler configured (manual scaling only)
+- Horizontal Pod Autoscaler enabled for some microservices but not all
+
+Microservices (8 total):
+1. Ingestion Service: Receives delivery requests via HTTPS, validates JSON payload, queues to Service Bus
+2. Workflow Service: Orchestrates delivery workflow, consumes from Service Bus queue, coordinates with other services
+3. Delivery Service: Manages delivery state, stores data in Azure Cache for Redis (Premium tier, 6GB)
+4. Drone Scheduler Service: Assigns drones to deliveries, manages drone fleet state
+5. Package Service: Tracks package information, stores data in MongoDB (Azure Cosmos DB for MongoDB, provisioned throughput 10,000 RU/s)
+6. Notification Service: Sends email/SMS notifications to customers
+7. Account Service: User authentication and profile management
+8. Drone Telemetry Service: Real-time drone location tracking
+
+Networking & Security:
+- Azure Load Balancer (Standard SKU) with public IP for ingress
+- Single virtual network (10.240.0.0/16) with one subnet for all AKS nodes
+- No network policies configured
+- TLS termination at ingress controller using self-signed certificates (not production-ready)
+- No Web Application Firewall (WAF)
+- Network Security Groups (NSGs) with default rules only
+
+Data Storage:
+- Azure Cache for Redis (Premium C3, 6GB, no clustering, single zone)
+- Azure Cosmos DB for MongoDB (provisioned throughput 10,000 RU/s, single region, no zone redundancy)
+- Azure Service Bus (Standard tier, single namespace, no geo-disaster recovery)
+- Azure SQL Database (General Purpose, Gen5, 2 vCores, single database for Account Service)
+- No backup policies configured for databases
+- Data stored in single region only (West US 2)
+
+Container Registry:
+- Azure Container Registry (Standard tier, no geo-replication)
+- Images stored without vulnerability scanning
+- No image retention policies
+- Public network access enabled
+
+Identity & Access:
+- Microsoft Entra ID integration for cluster management
+- System-assigned managed identity for AKS cluster
+- No Microsoft Entra Workload ID configured for individual microservices
+- Kubernetes RBAC enabled but only default configurations
+- Service-to-service authentication using shared secrets stored in Kubernetes secrets (not Key Vault)
+- No Azure Key Vault integration for secrets management
+
+DevOps & CI/CD:
+- Azure Pipelines for CI/CD (single pipeline for all microservices)
+- Manual deployment approvals for production
+- Helm charts for microservice deployment (version 3.12)
+- No automated image patching or vulnerability scanning in pipeline
+- Docker images built from latest base images without pinning versions
+- No canary deployments or progressive rollouts configured
+- Build artifacts stored in Azure Pipelines with 30-day retention
+
+Monitoring & Observability:
+- Azure Monitor enabled with Container Insights
+- Application Insights connected to 5 out of 8 microservices
+- Log Analytics workspace (30-day retention, pay-as-you-go pricing)
+- No custom metrics or dashboards configured
+- Kubernetes health probes:
+  * Liveness probes configured on 4 microservices
+  * Readiness probes configured on 6 microservices
+  * No startup probes configured
+  * Some probes checking external dependencies (database connections)
+- No distributed tracing configured
+- Alerts configured for node CPU > 90% and memory > 85% only
+- No integration with Microsoft Sentinel or SIEM
+
+Resource Configuration Issues:
+- No resource limits defined for most containers (only requests set)
+- No resource quotas configured at namespace level
+- All microservices deployed to default namespace (no namespace segregation)
+- No pod disruption budgets configured
+- No pod security policies or Azure Policy for Kubernetes enabled
+- Containers running as root user
+- Some containers configured in privileged mode for debugging
+
+High Availability & Disaster Recovery:
+- Single AKS cluster in one region (West US 2)
+- No multi-region deployment or traffic manager
+- Redis cache in single availability zone
+- Cosmos DB without zone redundancy or multi-region writes
+- Service Bus in single region without geo-disaster recovery pairing
+- No automated backup and restore procedures
+- RTO target: 4 hours, RPO target: 1 hour (business requirements)
+- No disaster recovery testing or runbooks
+
+Scaling Configuration:
+- Horizontal Pod Autoscaler (HPA) enabled for:
+  * Ingestion Service: min 2, max 10 replicas (CPU target 70%)
+  * Workflow Service: min 3, max 15 replicas (CPU target 60%)
+  * Delivery Service: fixed 5 replicas (no autoscaling)
+  * Other services: 2 replicas each (no autoscaling)
+- No vertical pod autoscaler configured
+- Cluster autoscaler: DISABLED (manual node scaling only)
+- Spot nodes used for non-critical batch jobs but no taints/tolerations configured
+
+Cost & Optimization Concerns:
+- Premium Redis cache running 24/7 even during low-traffic hours
+- Cosmos DB provisioned at 10,000 RU/s constantly (no autoscale)
+- No Azure reservations or savings plans for VMs
+- Standard Load Balancer with multiple unused load-balancing rules
+- Log Analytics ingesting ~500GB/month at pay-as-you-go pricing
+- Application Insights on unlimited tier (no daily cap)
+- Development and QA clusters mirror production configuration (oversized)
+- No resource tagging strategy for cost allocation
+- Orphaned persistent volumes from deleted pods (5 unused 128GB disks)
+
+Compliance & Governance:
+- No Azure Policy assignments for compliance frameworks
+- No encryption at rest configured beyond default Azure encryption
+- No customer-managed keys (CMK) for databases
+- Audit logging enabled only at AKS control plane level
+- No compliance certifications (SOC 2, PCI-DSS, HIPAA) implemented
+- Business criticality: HIGH
+- Compliance requirements: SOC 2, PCI-DSS required but not yet implemented
+- Data classification: Contains PII (customer addresses, phone numbers, payment info)
+
+Performance Issues:
+- No CDN configured for static assets
+- Database queries not optimized (no query performance insights enabled)
+- No caching strategy beyond Redis (no CDN, no in-memory caching in services)
+- Synchronous HTTP calls between all microservices (no async messaging beyond initial ingestion)
+- No circuit breakers or retry policies implemented in code
+- No service mesh (Istio/Linkerd) for traffic management
+- Public internet egress for all external API calls (no NAT Gateway or Azure Firewall)
+
+Dependencies & External Integrations:
+- Third-party email service (SendGrid) - API key stored in Kubernetes secret
+- Third-party SMS service (Twilio) - credentials in environment variables
+- Third-party payment processor - webhooks without signature validation
+- External weather API for drone flight conditions - no retry logic, no fallback
+- All external calls without timeout configuration
+
+Known Issues & Technical Debt:
+1. Ingestion service occasionally loses messages during high load (Service Bus queue not partitioned)
+2. Workflow service memory leak suspected (gradual memory increase over 48 hours)
+3. Delivery service Redis connection pool exhaustion during traffic spikes
+4. Drone Scheduler service has deadlock issues under concurrent load
+5. No health check endpoint for Package service
+6. Application Insights not configured for Notification and Account services
+7. Helm charts have hardcoded values instead of using values.yaml properly
+8. Several deprecated Kubernetes API versions in manifests (apps/v1beta1)
+9. Docker images using Ubuntu 18.04 base (EOL)
+10. No automated certificate rotation (TLS certificates expire in 45 days)
+
+Team Structure:
+- 3 development teams sharing the same AKS cluster
+- No namespace isolation between teams
+- Shared Azure Pipelines with no team-specific pipelines
+- All teams have cluster-admin access (no RBAC segmentation)
+- On-call rotation uses email-based notifications (no PagerDuty/Opsgenie)
+- No runbooks or incident response procedures documented
+- No post-incident review process
+
+Traffic Patterns:
+- Peak traffic: 10,000 requests/minute during business hours (9 AM - 6 PM EST)
+- Off-peak: 500 requests/minute
+- 80% of traffic from North America, 15% Europe, 5% Asia
+- Black Friday traffic spikes to 50,000 requests/minute (current architecture struggles)
+- No rate limiting configured at API gateway level
+- No DDoS protection enabled
+
+MISSING CRITICAL COMPONENTS
+----------------------------
+- No Azure Application Gateway or Azure Front Door for global load balancing
+- No Azure Firewall for egress traffic filtering
+- No Azure Key Vault for secrets management
+- No Microsoft Defender for Containers enabled
+- No Azure Backup configured for stateful services
+- No Azure Site Recovery for disaster recovery
+- No Azure Policy for governance
+- No Azure Cost Management budgets or alerts
+- No Infrastructure as Code (IaC) - all resources created via Azure Portal
+- No GitOps workflow (manual kubectl apply commands)
+- No service mesh for observability and traffic management
+- No chaos engineering or resilience testing
+
+ARCHITECTURAL ANTI-PATTERNS PRESENT
+------------------------------------
+1. Chatty microservices with synchronous HTTP for all communication
+2. Shared database anti-pattern (Account service sharing SQL DB with legacy app)
+3. No event-driven architecture despite needing real-time updates
+4. Monolithic deployment (all services deployed together despite being separate)
+5. No API versioning strategy
+6. Tight coupling between Workflow and Drone Scheduler services
+7. Distributed monolith characteristics (services can't be deployed independently)
+8. No backward compatibility in API contracts
+9. Hard-coded configuration values in container images
+10. No feature flags for gradual rollout of new features

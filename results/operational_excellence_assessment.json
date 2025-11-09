@@ -1,0 +1,383 @@
+{
+  "overall_score": 0,
+  "domain_scores": {
+    "OE01": {
+      "score": 26,
+      "title": "Define standard practices to develop and operate workload"
+    },
+    "OE02": {
+      "score": 18,
+      "title": "Formalize operational tasks"
+    },
+    "OE03": {
+      "score": 24,
+      "title": "Formalize software ideation and planning"
+    },
+    "OE04": {
+      "score": 32,
+      "title": "Enhance software development and quality assurance"
+    },
+    "OE05": {
+      "score": 5,
+      "title": "Use infrastructure as code"
+    },
+    "OE06": {
+      "score": 27,
+      "title": "Build workload supply chain with pipelines"
+    },
+    "OE07": {
+      "score": 28,
+      "title": "Design and implement monitoring system"
+    },
+    "OE08": {
+      "score": 10,
+      "title": "Establish structured incident management"
+    },
+    "OE09": {
+      "score": 14,
+      "title": "Automate repetitive tasks"
+    },
+    "OE10": {
+      "score": 12,
+      "title": "Design and implement automation upfront"
+    },
+    "OE11": {
+      "score": 19,
+      "title": "Define safe deployment practices"
+    }
+  },
+  "recommendations": [
+    {
+      "title": "Implement Infrastructure as Code (IaC)",
+      "description": "Adopt declarative IaC tools such as Bicep, Terraform, or ARM templates to provision and manage all Azure resources, including AKS cluster, network components, databases, and monitoring. Version-control IaC artifacts to enable team collaboration, prevent configuration drift, and support automated testing and review workflows.",
+      "priority": "Critical",
+      "impact_score": 10,
+      "pillar_codes": [
+        "OE05",
+        "OE10"
+      ],
+      "severity": 1
+    },
+    {
+      "title": "Formalize Incident Management and On-Call Procedures",
+      "description": "Establish structured incident management processes including documented runbooks, escalation protocols, and integration with modern on-call tools (e.g., PagerDuty, Opsgenie). Conduct postmortem reviews for incidents and outages to foster a culture of learning and continuous improvement.",
+      "priority": "Critical",
+      "impact_score": 10,
+      "pillar_codes": [
+        "OE02",
+        "OE08",
+        "OE01"
+      ],
+      "severity": 1
+    },
+    {
+      "title": "Enable Progressive Delivery and Safe Deployment Practices",
+      "description": "Introduce deployment safety controls such as canary releases, blue-green deployments, deployment slots, and feature flags. Refactor Helm charts for parameterization. Automate certificate rotation and implement automated rollback strategies to limit exposure from failed releases.",
+      "priority": "Critical",
+      "impact_score": 9,
+      "pillar_codes": [
+        "OE11",
+        "OE04",
+        "OE06"
+      ],
+      "severity": 1
+    },
+    {
+      "title": "Centralize and Automate Secrets Management",
+      "description": "Integrate Azure Key Vault for storing and rotating secrets, API keys, and connection strings. Configure managed identities and Entra Workload ID for secure access. Remove hardcoded values and shared secrets from code and container images. Automate secret injection into workloads.",
+      "priority": "Critical",
+      "impact_score": 10,
+      "pillar_codes": [
+        "OE10",
+        "OE02",
+        "OE04"
+      ],
+      "severity": 1
+    },
+    {
+      "title": "Expand and Standardize Monitoring, Logging, and Observability",
+      "description": "Instrument all microservices with Application Insights, enable distributed tracing, and develop custom dashboards in Azure Monitor. Extend health probes (liveness, readiness, startup) to all services, configure useful metrics and telemetry, and set up actionable alerts for service-level indicators beyond resource utilization.",
+      "priority": "High",
+      "impact_score": 8,
+      "pillar_codes": [
+        "OE07",
+        "OE04",
+        "OE01"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Automate Critical Operational and Repetitive Tasks",
+      "description": "Automate database backup, certificate renewals, log rotation, vulnerability scanning, and patch management using Azure Automation, Logic Apps, and CI/CD pipeline steps. Schedule jobs for resource clean-up (e.g., orphaned disks), scaling operations, and routine maintenance.",
+      "priority": "High",
+      "impact_score": 8,
+      "pillar_codes": [
+        "OE09",
+        "OE10"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Refine CI/CD Pipeline for Microservice Independence",
+      "description": "Move away from monolithic deployment pipelines and establish independent CI/CD pipelines for each microservice, enabling targeted, incremental releases and improving change tracking. Incorporate automated testing (unit, integration, security), image vulnerability scans, and artifact retention controls.",
+      "priority": "High",
+      "impact_score": 8,
+      "pillar_codes": [
+        "OE06",
+        "OE04",
+        "OE11"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Establish Team and Namespace Segmentation",
+      "description": "Align AKS namespaces and RBAC with team boundaries for isolation and governance. Enforce resource quotas and network policies for microservice security, and restrict cluster-admin permissions to core operators only. Document and communicate role responsibilities.",
+      "priority": "High",
+      "impact_score": 7,
+      "pillar_codes": [
+        "OE01",
+        "OE02"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Develop Standard Operating Procedures and Knowledge Repository",
+      "description": "Document standard operational practices for all teams in a central repository. Include SOPs for onboarding, deployments, DR, backup/restore, incident triage, and environmental changes. Implement knowledge sharing and recurring improvement cycles via postmortems and retrospectives.",
+      "priority": "Medium",
+      "impact_score": 6,
+      "pillar_codes": [
+        "OE01",
+        "OE02",
+        "OE08"
+      ],
+      "severity": 3
+    },
+    {
+      "title": "Improve Disaster Recovery and High Availability Preparedness",
+      "description": "Implement multi-region redundancy, configure geo-redundant data stores, automate backups with tested restore procedures, and regularly validate failover processes. Establish DR and HA runbooks and perform scheduled DR drills to ensure RTO/RPO compliance.",
+      "priority": "Critical",
+      "impact_score": 10,
+      "pillar_codes": [
+        "OE02",
+        "OE08",
+        "OE10"
+      ],
+      "severity": 1
+    },
+    {
+      "title": "Advance Automation Coverage Across Lifecycle",
+      "description": "Apply automation for bootstrapping, resource provisioning, governance, policy enforcement, and cost optimization (e.g., auto-scaling, rightsizing, tagging). Use Azure Policy for compliance enforcement and Azure Cost Management for budget tracking and alerts.",
+      "priority": "High",
+      "impact_score": 8,
+      "pillar_codes": [
+        "OE10",
+        "OE02",
+        "OE09"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Enforce Software Development and Quality Assurance Standards",
+      "description": "Define and enforce coding standards, code review processes, design pattern adherence, test coverage metrics, and hygiene of configuration management. Update to supported base images, refactor deprecated APIs, and ensure secure container configurations (non-root, non-privileged mode for production).",
+      "priority": "High",
+      "impact_score": 8,
+      "pillar_codes": [
+        "OE04"
+      ],
+      "severity": 2
+    }
+  ],
+  "maturity": {
+    "pillar": "operational",
+    "overall_maturity_percent": 31.43,
+    "practice_scores": [
+      {
+        "code": "OE01",
+        "score": 1,
+        "weight": 0.1,
+        "matched_signals": [
+          "devops"
+        ],
+        "coverage": 0.143,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "OE02",
+        "score": 0,
+        "weight": 0.09,
+        "matched_signals": [],
+        "coverage": 0.0,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "OE03",
+        "score": 1,
+        "weight": 0.08,
+        "matched_signals": [
+          "requirements"
+        ],
+        "coverage": 0.143,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "OE04",
+        "score": 0,
+        "weight": 0.1,
+        "matched_signals": [],
+        "coverage": 0.0,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "OE05",
+        "score": 1,
+        "weight": 0.1,
+        "matched_signals": [
+          "iac"
+        ],
+        "coverage": 0.143,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "OE06",
+        "score": 2,
+        "weight": 0.11,
+        "matched_signals": [
+          "ci/cd",
+          "pipeline",
+          "azure pipelines",
+          "build"
+        ],
+        "coverage": 0.5,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "OE07",
+        "score": 4,
+        "weight": 0.11,
+        "matched_signals": [
+          "application insights",
+          "log analytics",
+          "telemetry",
+          "metrics",
+          "distributed tracing",
+          "observability"
+        ],
+        "coverage": 0.857,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "OE08",
+        "score": 3,
+        "weight": 0.09,
+        "matched_signals": [
+          "incident",
+          "on-call",
+          "pagerduty",
+          "opsgenie"
+        ],
+        "coverage": 0.571,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "OE09",
+        "score": 2,
+        "weight": 0.09,
+        "matched_signals": [
+          "automation",
+          "logic apps",
+          "functions"
+        ],
+        "coverage": 0.429,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "OE10",
+        "score": 2,
+        "weight": 0.08,
+        "matched_signals": [
+          "auto-scaling",
+          "lifecycle"
+        ],
+        "coverage": 0.333,
+        "mode": "legacy-proportional"
+      },
+      {
+        "code": "OE11",
+        "score": 1,
+        "weight": 0.1,
+        "matched_signals": [
+          "canary",
+          "progressive"
+        ],
+        "coverage": 0.286,
+        "mode": "legacy-proportional"
+      }
+    ],
+    "recommendations": [],
+    "gaps": [
+      {
+        "id": null,
+        "label": null,
+        "detail": null,
+        "practice": null,
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": []
+      },
+      {
+        "id": null,
+        "label": null,
+        "detail": null,
+        "practice": null,
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": []
+      },
+      {
+        "id": null,
+        "label": null,
+        "detail": null,
+        "practice": null,
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": []
+      },
+      {
+        "id": null,
+        "label": null,
+        "detail": null,
+        "practice": null,
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": []
+      },
+      {
+        "id": null,
+        "label": null,
+        "detail": null,
+        "practice": null,
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": []
+      }
+    ],
+    "matched_gap_count": 0,
+    "unmatched_gap_count": 5,
+    "framework": null
+  },
+  "mcp_references": [
+    {
+      "title": "Review the Azure Well-Architected Framework operational excellence checklist",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/checklist/azure-operational-excellence"
+    },
+    {
+      "title": "Operational Excellence pillar\u2014Azure Well-Architected Framework",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/framework/operational-excellence/overview"
+    },
+    {
+      "title": "Operational Excellence design principles\u2014Azure Architecture Center",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/framework/operational-excellence/design-principles"
+    }
+  ],
+  "timestamp": "2025-11-05T10:34:52.006617"
+}

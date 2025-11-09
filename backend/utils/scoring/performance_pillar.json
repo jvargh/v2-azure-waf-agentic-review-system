@@ -1,0 +1,25 @@
+{
+  "pillar": "performance",
+  "practices": [
+    {"code": "PE01", "title": "Performance Targets & SLIs/SLOs", "weight": 0.08, "signals": ["slo", "latency", "throughput", "error budget", "sli"], "category": "governance"},
+    {"code": "PE02", "title": "Capacity & Demand Planning", "weight": 0.08, "signals": ["forecast", "peak", "trend", "seasonal", "capacity"], "category": "planning"},
+    {"code": "PE03", "title": "Service & Architecture Selection", "weight": 0.08, "signals": ["aks", "app service", "container apps", "serverless", "event-driven"], "category": "architecture"},
+    {"code": "PE04", "title": "Data Collection & Telemetry", "weight": 0.08, "signals": ["metrics", "traces", "profiling", "instrumentation", "observability"], "category": "telemetry"},
+    {"code": "PE05", "title": "Scaling & Partitioning Strategy", "weight": 0.09, "signals": ["autoscale", "hpa", "partition", "shard", "multi-region"], "category": "scaling"},
+    {"code": "PE06", "title": "Performance Testing & Benchmarking", "weight": 0.09, "signals": ["load test", "stress", "spike", "soak", "benchmark"], "category": "testing"},
+    {"code": "PE07", "title": "Code & Runtime Optimization", "weight": 0.08, "signals": ["profiling", "async", "caching", "batch", "hot path"], "category": "optimization"},
+    {"code": "PE08", "title": "Data Usage Optimization", "weight": 0.08, "signals": ["index", "query", "compression", "ttl", "partition key"], "category": "data"},
+    {"code": "PE09", "title": "Critical Flow Optimization", "weight": 0.08, "signals": ["critical flow", "user journey", "latency analysis", "trace", "path"], "category": "flows"},
+    {"code": "PE10", "title": "Operational Load Efficiency", "weight": 0.08, "signals": ["automation", "toil", "script", "runbook", "auto-remediation"], "category": "operations"},
+    {"code": "PE11", "title": "Live Issue Triage & Remediation", "weight": 0.09, "signals": ["incident", "on-call", "rollback", "triage", "root cause"], "category": "incident"},
+    {"code": "PE12", "title": "Continuous Optimization & Feedback Loop", "weight": 0.09, "signals": ["continuous", "iteration", "feedback", "review", "performance budget"], "category": "continuous"}
+  ],
+  "scale": {"min": 0, "max": 100},
+  "gaps": [
+    {"pattern": "no autoscale", "recommendation": "Implement autoscale and predictive scaling on critical services", "severity": 1, "related_codes": ["PE05", "PE02"]},
+    {"pattern": "no load test", "recommendation": "Introduce regular load, stress, and spike testing with baselines", "severity": 1, "related_codes": ["PE06", "PE01"]},
+    {"pattern": "no profiling", "recommendation": "Adopt profiling and hot path optimization with tracing", "severity": 2, "related_codes": ["PE07", "PE09"]},
+    {"pattern": "single region", "recommendation": "Partition and deploy multi-region for latency and resilience", "severity": 1, "related_codes": ["PE05", "PE03"]},
+    {"pattern": "manual incident", "recommendation": "Automate triage, rollback, and remediation workflows", "severity": 2, "related_codes": ["PE11", "PE10"]}
+  ]
+}

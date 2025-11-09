@@ -1,0 +1,497 @@
+{
+  "overall_score": 38,
+  "domain_scores": {
+    "RE01": {
+      "score": 40,
+      "title": "Reliability-Focused Design Foundations"
+    },
+    "RE02": {
+      "score": 45,
+      "title": "Identify and Rate User and System Flows"
+    },
+    "RE03": {
+      "score": 30,
+      "title": "Perform Failure Mode Analysis (FMA)"
+    },
+    "RE04": {
+      "score": 35,
+      "title": "Define Reliability and Recovery Targets"
+    },
+    "RE05": {
+      "score": 25,
+      "title": "Add Redundancy at Different Levels"
+    },
+    "RE06": {
+      "score": 35,
+      "title": "Implement a Timely and Reliable Scaling Strategy"
+    },
+    "RE07": {
+      "score": 30,
+      "title": "Strengthen Resiliency with Self-Preservation and Self-Healing"
+    },
+    "RE08": {
+      "score": 20,
+      "title": "Test for Resiliency and Availability Scenarios"
+    },
+    "RE09": {
+      "score": 20,
+      "title": "Implement Structured, Tested, and Documented BCDR Plans"
+    },
+    "RE10": {
+      "score": 50,
+      "title": "Measure and Model the Solution\u2019s Health Indicators"
+    }
+  },
+  "recommendations": [
+    {
+      "title": "Implement Multi-Region and Zone Redundancy Across All Critical Azure Services",
+      "description": "Deploy AKS clusters, Cosmos DB, Redis, SQL Database, and Service Bus in multiple regions and/or enable zone redundancy. Configure traffic management using Azure Front Door or Traffic Manager and geo-disaster recovery features to ensure business continuity during regional outages.",
+      "priority": 1,
+      "impact_score": 10,
+      "re_codes": [
+        "RE05",
+        "RE09"
+      ],
+      "severity": 1
+    },
+    {
+      "title": "Establish Automated Backup, Disaster Recovery, and Failover Procedures",
+      "description": "Enable Azure Backup for all databases and stateful services and configure automated failover and restore processes. Set up DR runbooks and regularly conduct DR drills to validate your RTO/RPO targets. Document and review these plans quarterly.",
+      "priority": 1,
+      "impact_score": 9,
+      "re_codes": [
+        "RE09",
+        "RE04"
+      ],
+      "severity": 1
+    },
+    {
+      "title": "Enforce Secrets Management and Identity Isolation Using Azure Key Vault and Workload ID",
+      "description": "Replace Kubernetes secrets and environment variable credentials with centralized secrets management using Azure Key Vault. Adopt Microsoft Entra Workload ID for service identity delegation within AKS. Institute proper RBAC policies at both AKS and Azure platform levels.",
+      "priority": 1,
+      "impact_score": 8,
+      "re_codes": [
+        "RE01",
+        "RE07"
+      ],
+      "severity": 1
+    },
+    {
+      "title": "Introduce Chaos Engineering and Automated Resilience/Fault Injection Testing",
+      "description": "Integrate Azure Chaos Studio or equivalent tools for controlled fault injection and resilience validation. Develop regular schedules for chaos experiments, and use learnings to iteratively improve architecture and incident response runbooks.",
+      "priority": 2,
+      "impact_score": 8,
+      "re_codes": [
+        "RE08",
+        "RE03"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Configure Cluster Autoscaler and Apply Resource Quotas, Limits, and Pod Disruption Budgets",
+      "description": "Enable AKS Cluster Autoscaler and tune node pool settings for adaptive scaling. Define resource limits/requests for all containers, set namespace-level quotas, configure Pod Disruption Budgets and security policies to minimize unexpected downtime and improve resilience.",
+      "priority": 2,
+      "impact_score": 7,
+      "re_codes": [
+        "RE06",
+        "RE07"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Strengthen Monitoring and Distributed Tracing Across All Microservices",
+      "description": "Ensure Azure Monitor and Application Insights are enabled for all microservices. Integrate distributed tracing (OpenTelemetry or Azure Monitor Application Map) to diagnose issues across system boundaries. Expand observable health probes (including startup probes), and build custom dashboards to track SLOs, SLIs, and error budgets.",
+      "priority": 2,
+      "impact_score": 6,
+      "re_codes": [
+        "RE10",
+        "RE04"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Eliminate Synchronous Microservice Dependencies and Enable Event-Driven Architecture",
+      "description": "Refactor inter-service communications to use asynchronous messaging (Service Bus topics, events) where appropriate. Introduce retry policies, circuit breakers, and fallback logic to improve resilience against transient failures.",
+      "priority": 2,
+      "impact_score": 7,
+      "re_codes": [
+        "RE07",
+        "RE03"
+      ],
+      "severity": 2
+    },
+    {
+      "title": "Formalize Reliability Design and Map All User/System Flows to Business Impact and Reliability Targets",
+      "description": "Create comprehensive documentation of all user/system flows, rate criticality, and establish corresponding reliability targets (SLO, SLI, RTO/RPO). Map flows to business processes and dependencies to guide resilience investments.",
+      "priority": 3,
+      "impact_score": 5,
+      "re_codes": [
+        "RE02",
+        "RE04"
+      ],
+      "severity": 3
+    },
+    {
+      "title": "Enable Automated Image Vulnerability Scanning and Version Pinning in CI/CD",
+      "description": "Integrate continuous image scanning in your build pipelines and enforce base image version pinning. Use Microsoft Defender for Containers to minimize exposure to supply chain attacks.",
+      "priority": 3,
+      "impact_score": 4,
+      "re_codes": [
+        "RE01",
+        "RE07"
+      ],
+      "severity": 3
+    }
+  ],
+  "maturity": {
+    "pillar": "reliability",
+    "overall_maturity_percent": 43.6,
+    "practice_scores": [
+      {
+        "code": "RE01",
+        "score": 1,
+        "weight": 8.0,
+        "matched_signals": [
+          "asynchronous"
+        ],
+        "coverage": 0.125,
+        "mode": "proportional"
+      },
+      {
+        "code": "RE02",
+        "score": 0,
+        "weight": 7.0,
+        "matched_signals": [],
+        "coverage": 0.0,
+        "mode": "binary"
+      },
+      {
+        "code": "RE03",
+        "score": 2,
+        "weight": 10.0,
+        "matched_signals": [
+          "dependency",
+          "chaos"
+        ],
+        "coverage": 0.5,
+        "mode": "proportional"
+      },
+      {
+        "code": "RE04",
+        "score": 2,
+        "weight": 9.0,
+        "matched_signals": [
+          "rto",
+          "rpo"
+        ],
+        "coverage": 0.333,
+        "mode": "proportional"
+      },
+      {
+        "code": "RE05",
+        "score": 4,
+        "weight": 12.0,
+        "matched_signals": [
+          "multi-region",
+          "zone",
+          "geo-replication"
+        ],
+        "coverage": 0.875,
+        "mode": "tiered"
+      },
+      {
+        "code": "RE06",
+        "score": 4,
+        "weight": 8.0,
+        "matched_signals": [
+          "autoscale",
+          "horizontal",
+          "queue"
+        ],
+        "coverage": 0.8,
+        "mode": "proportional"
+      },
+      {
+        "code": "RE07",
+        "score": 2,
+        "weight": 11.0,
+        "matched_signals": [
+          "retry",
+          "health probe"
+        ],
+        "coverage": 0.429,
+        "mode": "proportional"
+      },
+      {
+        "code": "RE08",
+        "score": 2,
+        "weight": 10.0,
+        "matched_signals": [
+          "chaos"
+        ],
+        "coverage": 0.333,
+        "mode": "proportional"
+      },
+      {
+        "code": "RE09",
+        "score": 2,
+        "weight": 13.0,
+        "matched_signals": [
+          "backup"
+        ],
+        "coverage": 0.25,
+        "mode": "tiered"
+      },
+      {
+        "code": "RE10",
+        "score": 2,
+        "weight": 12.0,
+        "matched_signals": [
+          "health probe",
+          "trace"
+        ],
+        "coverage": 0.4,
+        "mode": "proportional"
+      }
+    ],
+    "recommendations": [
+      {
+        "id": "re01-1",
+        "title": "Define architecture principles",
+        "description": "Document simplicity and dependency minimization principles.",
+        "severity": 2,
+        "practice": "RE01"
+      },
+      {
+        "id": "re02-1",
+        "title": "Catalog critical flows",
+        "description": "Create inventory with owners, criticality, and SLIs.",
+        "severity": 1,
+        "practice": "RE02"
+      },
+      {
+        "id": "re03-1",
+        "title": "Conduct structured FMA",
+        "description": "Enumerate components, failure modes, likelihood and impact.",
+        "severity": 1,
+        "practice": "RE03"
+      },
+      {
+        "id": "re04-1",
+        "title": "Define SLOs & Error Budgets",
+        "description": "Set availability, latency, and recovery targets per critical flow.",
+        "severity": 1,
+        "practice": "RE04"
+      },
+      {
+        "id": "re07-1",
+        "title": "Implement circuit breaker",
+        "description": "Add circuit breaker and retry with backoff for external dependencies.",
+        "severity": 1,
+        "practice": "RE07"
+      },
+      {
+        "id": "re08-1",
+        "title": "Start chaos experiments",
+        "description": "Inject latency and dependency faults in non-prod.",
+        "severity": 2,
+        "practice": "RE08"
+      },
+      {
+        "id": "re09-1",
+        "title": "Create disaster recovery runbook",
+        "description": "Define triggers, roles, failover and failback process.",
+        "severity": 1,
+        "practice": "RE09"
+      },
+      {
+        "id": "re10-1",
+        "title": "Add synthetic checks & correlation IDs",
+        "description": "Implement geo-probes and trace correlation for end-to-end visibility.",
+        "severity": 2,
+        "practice": "RE10"
+      }
+    ],
+    "gaps": [
+      {
+        "id": "gap_single_region",
+        "label": "Single region deployment",
+        "detail": "Workload deployed in only one Azure region; increases blast radius for regional failures.",
+        "practice": "RE05",
+        "matched": true,
+        "matchedPatterns": [
+          "single region",
+          "one region"
+        ],
+        "recommendationHintKeywords": [
+          "multi-region",
+          "geo",
+          "front door",
+          "traffic manager"
+        ]
+      },
+      {
+        "id": "gap_no_zone_redundancy",
+        "label": "No availability zones configured",
+        "detail": "Zone redundancy disabled or not mentioned for critical compute tier.",
+        "practice": "RE05",
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": [
+          "zone",
+          "availability zone",
+          "redundant"
+        ]
+      },
+      {
+        "id": "gap_no_backup_dr",
+        "label": "No backup or disaster recovery configuration",
+        "detail": "Backups, DR plan, or failover strategy absent.",
+        "practice": "RE09",
+        "matched": true,
+        "matchedPatterns": [
+          "no backup",
+          "no disaster recovery"
+        ],
+        "recommendationHintKeywords": [
+          "backup",
+          "dr",
+          "runbook",
+          "failover"
+        ]
+      },
+      {
+        "id": "gap_no_autoscale",
+        "label": "No autoscale configured",
+        "detail": "Autoscaling rules missing; potential performance degradation under variable load.",
+        "practice": "RE06",
+        "matched": true,
+        "matchedPatterns": [
+          "no autoscale"
+        ],
+        "recommendationHintKeywords": [
+          "autoscale",
+          "scale out",
+          "horizontal"
+        ]
+      },
+      {
+        "id": "gap_no_health_probes",
+        "label": "No health probes or checks",
+        "detail": "Health endpoints or probe configuration absent; impairs self-healing.",
+        "practice": "RE07",
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": [
+          "health probe",
+          "liveness",
+          "readiness"
+        ]
+      },
+      {
+        "id": "gap_external_dependency_no_fallback",
+        "label": "External dependency without fallback",
+        "detail": "Critical external services (e.g., Bing) lack fallback or degraded mode.",
+        "practice": "RE07",
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": [
+          "fallback",
+          "cached",
+          "graceful degradation"
+        ]
+      },
+      {
+        "id": "gap_no_resilience_patterns",
+        "label": "Missing resilience patterns",
+        "detail": "Circuit breaker or retry patterns not implemented for dependencies.",
+        "practice": "RE07",
+        "matched": true,
+        "matchedPatterns": [
+          "no retry"
+        ],
+        "recommendationHintKeywords": [
+          "circuit breaker",
+          "retry",
+          "backoff"
+        ]
+      },
+      {
+        "id": "gap_basic_service_tier",
+        "label": "Basic service tier with limited SLA",
+        "detail": "Using low-tier SKU (e.g., Basic B1) reduces availability guarantees.",
+        "practice": "RE05",
+        "matched": false,
+        "matchedPatterns": [],
+        "recommendationHintKeywords": [
+          "premium",
+          "zone redundant",
+          "scaling"
+        ]
+      },
+      {
+        "id": "gap_public_network_access",
+        "label": "Public network access without isolation",
+        "detail": "Resources exposed publicly; no VNet/private endpoints configured.",
+        "practice": "RE05",
+        "matched": true,
+        "matchedPatterns": [
+          "public network access enabled"
+        ],
+        "recommendationHintKeywords": [
+          "vnet",
+          "private endpoint",
+          "waf"
+        ]
+      },
+      {
+        "id": "gap_no_waf_ddos",
+        "label": "No WAF or DDoS protection",
+        "detail": "Missing edge protection measures for web workloads.",
+        "practice": "RE05",
+        "matched": true,
+        "matchedPatterns": [
+          "no web application firewall",
+          "no ddos"
+        ],
+        "recommendationHintKeywords": [
+          "waf",
+          "ddos"
+        ]
+      },
+      {
+        "id": "gap_limited_monitoring",
+        "label": "Limited monitoring and observability",
+        "detail": "Only basic Application Insights; lack of distributed tracing or synthetic checks.",
+        "practice": "RE10",
+        "matched": true,
+        "matchedPatterns": [
+          "application insights"
+        ],
+        "recommendationHintKeywords": [
+          "trace",
+          "synthetic",
+          "correlation"
+        ]
+      }
+    ],
+    "matched_gap_count": 7,
+    "unmatched_gap_count": 4,
+    "framework": "Azure Well-Architected Framework - Reliability"
+  },
+  "mcp_references": [
+    {
+      "title": "Azure Documentation",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/framework/reliability/overview"
+    },
+    {
+      "title": "Azure Documentation",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/framework/reliability/checklist"
+    },
+    {
+      "title": "Azure Documentation",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/framework/reliability/design"
+    }
+  ],
+  "timestamp": "2025-11-05T21:12:56.406746"
+}

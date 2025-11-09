@@ -1,0 +1,32 @@
+Azure Architecture for Healthcare Platform
+
+Deployment Process:
+- Manual deployments via Azure Portal clicking
+- No version control for infrastructure configurations
+- Production changes made directly without testing
+- Different configurations across dev/test/prod environments managed in spreadsheets
+
+Development Practices:
+- No code review process
+- No automated testing
+- Developers deploy directly to production
+- No coding standards or style guides documented
+
+Monitoring:
+- Basic Azure Monitor metrics viewed manually
+- No Application Insights configured
+- No centralized logging solution
+- Alerts configured reactively after incidents occur
+
+Operations:
+- No runbooks or operational procedures documented
+- On-call rotation managed via email
+- No incident response plan
+- Team knowledge resides with individual developers
+- No postmortems conducted after outages
+
+Infrastructure:
+- Resources provisioned manually through portal
+- No infrastructure as code practices
+- Configuration drift across environments
+- No automated testing of infrastructure changes

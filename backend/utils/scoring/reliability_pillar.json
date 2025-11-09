@@ -1,0 +1,397 @@
+{
+  "pillar": "reliability",
+  "version": "1.0",
+  "framework": "Azure Well-Architected Framework - Reliability",
+  "recommendation_severity_scale": {
+    "1": "Critical",
+    "2": "High",
+    "3": "Medium",
+    "4": "Low",
+    "5": "Informational"
+  },
+  "scale": {
+    "0": "Absent",
+    "1": "Ad-hoc / minimal",
+    "2": "Basic / partial",
+    "3": "Established",
+    "4": "Advanced",
+    "5": "Optimized / continuous improvement"
+  },
+  "weights": {
+    "RE01": 8,
+    "RE02": 7,
+    "RE03": 10,
+    "RE04": 9,
+    "RE05": 12,
+    "RE06": 8,
+    "RE07": 11,
+    "RE08": 10,
+    "RE09": 13,
+    "RE10": 12,
+    "total_weight": 100
+  },
+  "practices": [
+    {
+      "code": "RE01",
+      "title": "Simplicity & Efficiency",
+      "weight": 8,
+      "objective": "Design lean, efficient, and resilient workloads by reducing unnecessary complexity and aligning all design choices with business requirements.",
+      "recommendation_groups": [
+        {
+          "group": "Collaborate with Stakeholders",
+          "items": [
+            "Define critical flows and assign criticality levels",
+            "Establish functional & nonfunctional requirements (availability, scalability, latency)",
+            "Decompose workloads and eliminate redundant components",
+            "Conduct failure mode analysis and set realistic reliability targets (RTO, RPO, MTBF)"
+          ]
+        },
+        {
+          "group": "Favor Simpler Design Choices",
+            "items": [
+              "Avoid overengineering; prioritize clarity",
+              "Prefer PaaS/serverless over IaaS to reduce management burden",
+              "Use asynchronous messaging and abstraction layers",
+              "Centralize cross-cutting concerns (auth, logging)",
+              "Adopt microservices only when justified"
+            ]
+        },
+        {
+          "group": "Develop Just Enough Code",
+          "items": [
+            "Leverage platform tools (serverless, low/no-code)",
+            "Use frameworks, pair programming, and code reviews",
+            "Remove dead code and maintain test coverage"
+          ]
+        },
+        {
+          "group": "Select the Right Data Store",
+          "items": [
+            "Use polyglot persistence; match data types to fit-for-purpose stores",
+            "Optimize for availability over strict consistency when acceptable",
+            "Align database choices with existing team skill sets"
+          ]
+        }
+      ],
+      "scoring": {
+        "mode": "proportional",
+        "signals": ["simplicity", "paaS", "serverless", "asynchronous", "polyglot", "flow inventory"],
+        "signal_weights": {"simplicity": 2, "paaS": 2, "serverless": 1, "asynchronous": 1, "polyglot": 1, "flow inventory": 1},
+        "signal_aliases": {
+          "paaS": ["paas"],
+          "serverless": ["function app", "azure functions"],
+          "asynchronous": ["queue", "service bus", "event hub"],
+          "flow inventory": ["critical flow", "flow catalog"]
+        }
+      },
+      "recommendations": [
+  {"id": "re01-1", "title": "Define architecture principles", "description": "Document simplicity and dependency minimization principles.", "severity": 2},
+  {"id": "re01-2", "title": "Eliminate redundant components", "description": "Refactor or remove unused services to reduce failure surface.", "severity": 3}
+      ]
+    },
+    {
+      "code": "RE02",
+      "title": "Flow Identification & Criticality",
+      "weight": 7,
+      "objective": "Map and assess every user and system flow to understand criticality and business impact.",
+      "recommendation_groups": [
+        {"group": "Identify All Flows", "items": ["Interview stakeholders", "Review system documentation", "Observe runtime behavior via logs & metrics", "Define start/end points and exceptions", "Keep diagrams updated"]},
+        {"group": "Map to Business Processes", "items": ["Link flows to specific business processes", "Validate operational importance via interviews", "Use live telemetry to confirm usage"]},
+        {"group": "Define Ownership", "items": ["Assign process owner per critical flow", "Use RACI or RAM matrices"]},
+        {"group": "Establish Escalation Paths", "items": ["Document resolution paths", "Limit escalation layers"]},
+        {"group": "Assess Business Impact", "items": ["Quantify positive & negative impacts", "Define capacity & availability expectations"]},
+        {"group": "Assign Criticality", "items": ["Use simple scale (High/Medium/Low) based on business impact"]},
+        {"group": "Tie to Targets & Ops", "items": ["Drive SLO/SLA definitions", "Prioritize testing & incident response"]}
+      ],
+      "scoring": {
+        "mode": "binary",
+        "signals": ["flow inventory", "criticality rating", "raci"],
+        "signal_weights": {"flow inventory": 3, "criticality rating": 2, "raci": 1},
+        "signal_aliases": {"criticality rating": ["criticality level", "flow criticality"], "raci": ["ram matrix"]}
+      },
+      "recommendations": [
+        {"id": "re02-1", "title": "Catalog critical flows", "description": "Create inventory with owners, criticality, and SLIs.", "severity": 1}
+      ]
+    },
+    {
+      "code": "RE03",
+      "title": "Failure Mode Analysis",
+      "weight": 10,
+      "objective": "Identify potential failure points, assess blast radius, and plan mitigations.",
+      "recommendation_groups": [
+        {"group": "Decompose Workload", "items": ["Break into components", "Overlay critical flows", "Evaluate component criticality"]},
+        {"group": "Identify Dependencies", "items": ["Catalog internal & external dependencies", "Capture SLAs & scaling limits"]},
+        {"group": "Evaluate Failure Points", "items": ["Assess regional outage", "Assess DDoS & overload", "Consider misconfiguration & operator error"]},
+        {"group": "Plan Mitigations", "items": ["Introduce redundancy", "Design degraded modes", "Reduce unnecessary coupling"]},
+        {"group": "Implement Detection", "items": ["Automate monitoring & alerting", "Ensure redundancy in ops processes"]},
+        {"group": "Document Outcomes", "items": ["Maintain FMA docs", "Refine via chaos testing"]}
+      ],
+      "scoring": {
+        "mode": "proportional",
+        "signals": ["failure mode", "dependency", "mitigation", "chaos"],
+        "signal_weights": {"failure mode": 2, "dependency": 2, "mitigation": 1, "chaos": 1},
+        "signal_aliases": {"failure mode": ["fma"], "dependency": ["dependencies"], "mitigation": ["resiliency pattern"]}
+      },
+      "recommendations": [
+        {"id": "re03-1", "title": "Conduct structured FMA", "description": "Enumerate components, failure modes, likelihood and impact.", "severity": 1}
+      ]
+    },
+    {
+      "code": "RE04",
+      "title": "Reliability & Recovery Targets",
+      "weight": 9,
+      "objective": "Establish quantifiable reliability & recovery metrics to drive design and operations.",
+      "recommendation_groups": [
+        {"group": "Collaborate on Targets", "items": ["Run joint workshops", "Align on trade-offs & cost"]},
+        {"group": "Core Metrics", "items": ["SLO", "SLI", "SLA", "MTTR", "MTBF", "RTO", "RPO"]},
+        {"group": "SLO Design Practices", "items": ["Holistic workload SLOs", "Account for dependencies & ops", "Revisit post-incident"]},
+        {"group": "Implementation", "items": ["Dashboards tracking SLO compliance", "Alerting & auto-rollback integration"]}
+      ],
+      "scoring": {
+        "mode": "proportional",
+        "signals": ["slo", "sli", "rto", "rpo", "error budget"],
+        "signal_weights": {"slo": 2, "sli": 1, "rto": 1, "rpo": 1, "error budget": 1},
+        "signal_aliases": {"slo": ["service level objective"], "sli": ["indicator"], "error budget": ["budget burn"]}
+      },
+      "recommendations": [
+        {"id": "re04-1", "title": "Define SLOs & Error Budgets", "description": "Set availability, latency, and recovery targets per critical flow.", "severity": 1}
+      ]
+    },
+    {
+      "code": "RE05",
+      "title": "Redundancy",
+      "weight": 12,
+      "objective": "Ensure continuity by adding redundancy across compute, data, and network layers.",
+      "recommendation_groups": [
+        {"group": "Use Managed Services", "items": ["Prefer PaaS/SaaS with built-in redundancy"]},
+        {"group": "Multi-Instance Redundancy", "items": ["Deploy multiple instances", "Keep compute stateless", "Balance across zones/regions"]},
+        {"group": "Data Redundancy", "items": ["Geo-replication", "Automated failover", "Partition/shard where needed"]},
+        {"group": "Network Redundancy", "items": ["Multiple circuits", "Distributed traffic management"]},
+        {"group": "Balance Trade-offs", "items": ["Review redundancy vs cost", "Tailor by flow criticality"]}
+      ],
+      "scoring": {
+        "mode": "tiered",
+        "signals": ["multi-region", "zone", "geo-replication", "stateless"],
+        "signal_weights": {"multi-region": 3, "zone": 2, "geo-replication": 2, "stateless": 1},
+        "signal_aliases": {"zone": ["availability zone", "zone redundant"], "geo-replication": ["geo replication", "geo-redundant"], "stateless": ["stateless compute"]}
+      },
+      "recommendations": [
+        {"id": "re05-1", "title": "Introduce multi-region deployment", "description": "Add active-passive or active-active region for critical services.", "severity": 1}
+      ]
+    },
+    {
+      "code": "RE06",
+      "title": "Scaling Strategy",
+      "weight": 8,
+      "objective": "Design scaling approaches that keep workloads responsive under varying demand.",
+      "recommendation_groups": [
+        {"group": "Identify Load Patterns", "items": ["Categorize flows (static/predictable/unpredictable)", "Schedule vs autoscale"]},
+        {"group": "Horizontal Scalability", "items": ["Stateless components", "Queue-based load distribution", "Refactor long tasks"]},
+        {"group": "Component Adaptation", "items": ["Document non-scalable elements", "Avoid overloading downstream"]},
+        {"group": "Automate Scaling", "items": ["IaC for scaling", "Metrics tied to business KPIs"]},
+        {"group": "Technology Choice", "items": ["Use serverless & PaaS for built-in scaling"]}
+      ],
+      "scoring": {
+        "mode": "proportional",
+        "signals": ["autoscale", "horizontal", "queue", "stateless"],
+        "signal_weights": {"autoscale": 2, "horizontal": 1, "queue": 1, "stateless": 1},
+        "signal_aliases": {"horizontal": ["scale out"], "queue": ["service bus", "event hub"], "stateless": ["stateless compute"]}
+      },
+      "recommendations": [
+        {"id": "re06-1", "title": "Enable autoscale", "description": "Implement metric-based scaling rules and test thresholds.", "severity": 2}
+      ]
+    },
+    {
+      "code": "RE07",
+      "title": "Self-Healing & Resilience Patterns",
+      "weight": 11,
+      "objective": "Maintain functionality during failures and recover automatically.",
+      "recommendation_groups": [
+        {"group": "Design for Redundancy", "items": ["Eliminate single points of failure", "Deploy multi-zone/region"]},
+        {"group": "Self-Preservation", "items": ["Bulkhead pattern", "Deployment stamps", "Loose coupling"]},
+        {"group": "Self-Healing", "items": ["Automate detection & remediation", "Auto-restart/failover", "Idempotent operations"]},
+        {"group": "Graceful Degradation", "items": ["Maintain core flows", "Cached/read-only fallback"]},
+        {"group": "Transient Faults", "items": ["Retry with backoff", "Circuit breaker" ]}
+      ],
+      "scoring": {
+        "mode": "proportional",
+        "signals": ["circuit breaker", "retry", "health probe", "bulkhead", "idempotent"],
+        "signal_weights": {"circuit breaker": 2, "retry": 2, "health probe": 1, "bulkhead": 1, "idempotent": 1},
+        "signal_aliases": {"health probe": ["liveness", "readiness"], "retry": ["exponential backoff"], "bulkhead": ["bulkhead pattern"], "idempotent": ["idempotency"]}
+      },
+      "recommendations": [
+        {"id": "re07-1", "title": "Implement circuit breaker", "description": "Add circuit breaker and retry with backoff for external dependencies.", "severity": 1}
+      ]
+    },
+    {
+      "code": "RE08",
+      "title": "Resiliency & Chaos Testing",
+      "weight": 10,
+      "objective": "Continuously validate behaviors under stress and component failure.",
+      "recommendation_groups": [
+        {"group": "Testing Strategy", "items": ["Regular tests post-changes", "Automate for repeatability", "Maintain environment parity"]},
+        {"group": "Comprehensive Testing", "items": ["Validate SLOs / RTO / RPO", "Backup restore drills", "Dependency failure handling"]},
+        {"group": "Fault Injection", "items": ["Inject latency", "Simulate service unavailability", "Follow hypothesis-driven experiments"]},
+        {"group": "Operational Learning", "items": ["Use outages as learning", "Refine monitoring & docs"]}
+      ],
+      "scoring": {
+        "mode": "proportional",
+        "signals": ["chaos", "fault injection", "resiliency test", "drill"],
+        "signal_weights": {"chaos": 2, "fault injection": 2, "resiliency test": 1, "drill": 1},
+        "signal_aliases": {"chaos": ["chaos studio"], "drill": ["game day", "dr drill"], "resiliency test": ["reliability test"]}
+      },
+      "recommendations": [
+        {"id": "re08-1", "title": "Start chaos experiments", "description": "Inject latency and dependency faults in non-prod.", "severity": 2}
+      ]
+    },
+    {
+      "code": "RE09",
+      "title": "BCDR Planning",
+      "weight": 13,
+      "objective": "Develop & maintain comprehensive business continuity and disaster recovery strategy.",
+      "recommendation_groups": [
+        {"group": "Disaster Recovery Plan", "items": ["Define disaster vs minor failure", "Assign roles & escalation", "Review semi-annually"]},
+        {"group": "Recovery Procedures", "items": ["Component & workload steps", "Dependencies & prerequisites", "Order of operations documented"]},
+        {"group": "Automate & Validate", "items": ["Automated deployments & scripts", "Monitor automated actions"]},
+        {"group": "Failback Planning", "items": ["Independent failback plan", "Document manual steps"]},
+        {"group": "Regular Drills", "items": ["Annual production DR drill", "Tabletop exercises"]}
+      ],
+      "scoring": {
+        "mode": "tiered",
+        "signals": ["dr plan", "backup", "drill", "automation"],
+        "signal_weights": {"dr plan": 3, "backup": 2, "drill": 2, "automation": 1},
+        "signal_aliases": {"drill": ["recovery drill", "tabletop"], "automation": ["automated recovery", "scripted failover"]}
+      },
+      "recommendations": [
+        {"id": "re09-1", "title": "Create disaster recovery runbook", "description": "Define triggers, roles, failover and failback process.", "severity": 1}
+      ]
+    },
+    {
+      "code": "RE10",
+      "title": "Health Indicators & Monitoring",
+      "weight": 12,
+      "objective": "Implement comprehensive monitoring, alerting, and health modeling.",
+      "recommendation_groups": [
+        {"group": "Unified Monitoring", "items": ["Centralize logs & metrics", "Structured logging", "State transition alerts"]},
+        {"group": "Application Monitoring", "items": ["Geo-distributed synthetic checks", "Correlation IDs", "Asynchronous logging"]},
+        {"group": "Data & Storage Monitoring", "items": ["Track availability & latency", "Correlate compute/storage telemetry"]},
+        {"group": "Network Monitoring", "items": ["Synthetic connectivity tests", "Latency & packet loss analysis"]},
+        {"group": "Health Modeling", "items": ["Define healthy/degraded/unhealthy states", "Feedback loop via post-incident reviews"]}
+      ],
+      "scoring": {
+        "mode": "proportional",
+        "signals": ["health probe", "synthetic", "correlation", "slo", "trace"],
+        "signal_weights": {"health probe": 1, "synthetic": 1, "correlation": 1, "slo": 1, "trace": 1},
+        "signal_aliases": {"health probe": ["liveness", "readiness"], "correlation": ["correlation id"], "trace": ["distributed tracing", "otel"]}
+      },
+      "recommendations": [
+        {"id": "re10-1", "title": "Add synthetic checks & correlation IDs", "description": "Implement geo-probes and trace correlation for end-to-end visibility.", "severity": 2}
+      ]
+    }
+  ],
+  "signals_catalog": {
+    "multi-region": "Indicates deployment across more than one Azure region",
+    "zones": "Indicates zone redundancy availability",
+    "flow inventory": "Presence of documented business or system flows",
+    "health probe": "Liveness/readiness or custom health endpoints",
+    "slo": "Any mention of SLO/SLI/RTO/RPO/error budget constructs",
+    "autoscale": "Autoscale configuration or strategy references",
+    "circuit breaker": "Circuit breaker pattern used",
+    "retry": "Explicit retry/backoff handling",
+    "chaos": "Chaos engineering or fault injection activity",
+    "backup": "Backups implemented or referenced",
+    "dr plan": "Disaster recovery planning references",
+    "synthetic": "Synthetic monitoring / probes",
+    "correlation": "Correlation IDs or distributed tracing markers"
+  },
+  "gaps": [
+    {
+      "id": "gap_single_region",
+      "label": "Single region deployment",
+      "detail": "Workload deployed in only one Azure region; increases blast radius for regional failures.",
+      "patterns": ["single region", "one region", "east us 2 only"],
+      "recommendation_hint_keywords": ["multi-region", "geo", "front door", "traffic manager"],
+      "practice": "RE05"
+    },
+    {
+      "id": "gap_no_zone_redundancy",
+      "label": "No availability zones configured",
+      "detail": "Zone redundancy disabled or not mentioned for critical compute tier.",
+      "patterns": ["zone redundancy disabled", "no availability zones", "single instance"],
+      "recommendation_hint_keywords": ["zone", "availability zone", "redundant"],
+      "practice": "RE05"
+    },
+    {
+      "id": "gap_no_backup_dr",
+      "label": "No backup or disaster recovery configuration",
+      "detail": "Backups, DR plan, or failover strategy absent.",
+      "patterns": ["no backup", "no disaster recovery", "no dr plan"],
+      "recommendation_hint_keywords": ["backup", "dr", "runbook", "failover"],
+      "practice": "RE09"
+    },
+    {
+      "id": "gap_no_autoscale",
+      "label": "No autoscale configured",
+      "detail": "Autoscaling rules missing; potential performance degradation under variable load.",
+      "patterns": ["no auto-scaling", "no autoscale", "single instance"],
+      "recommendation_hint_keywords": ["autoscale", "scale out", "horizontal"],
+      "practice": "RE06"
+    },
+    {
+      "id": "gap_no_health_probes",
+      "label": "No health probes or checks",
+      "detail": "Health endpoints or probe configuration absent; impairs self-healing.",
+      "patterns": ["no health checks", "no health probes"],
+      "recommendation_hint_keywords": ["health probe", "liveness", "readiness"],
+      "practice": "RE07"
+    },
+    {
+      "id": "gap_external_dependency_no_fallback",
+      "label": "External dependency without fallback",
+      "detail": "Critical external services (e.g., Bing) lack fallback or degraded mode.",
+      "patterns": ["bing", "external service", "dependency"],
+      "recommendation_hint_keywords": ["fallback", "cached", "graceful degradation"],
+      "practice": "RE07"
+    },
+    {
+      "id": "gap_no_resilience_patterns",
+      "label": "Missing resilience patterns",
+      "detail": "Circuit breaker or retry patterns not implemented for dependencies.",
+      "patterns": ["no circuit breaker", "no retry", "no resilience pattern"],
+      "recommendation_hint_keywords": ["circuit breaker", "retry", "backoff"],
+      "practice": "RE07"
+    },
+    {
+      "id": "gap_basic_service_tier",
+      "label": "Basic service tier with limited SLA",
+      "detail": "Using low-tier SKU (e.g., Basic B1) reduces availability guarantees.",
+      "patterns": ["basic b1", "basic tier"],
+      "recommendation_hint_keywords": ["premium", "zone redundant", "scaling"],
+      "practice": "RE05"
+    },
+    {
+      "id": "gap_public_network_access",
+      "label": "Public network access without isolation",
+      "detail": "Resources exposed publicly; no VNet/private endpoints configured.",
+      "patterns": ["public network access enabled", "no virtual networks", "no private endpoint"],
+      "recommendation_hint_keywords": ["vnet", "private endpoint", "waf"],
+      "practice": "RE05"
+    },
+    {
+      "id": "gap_no_waf_ddos",
+      "label": "No WAF or DDoS protection",
+      "detail": "Missing edge protection measures for web workloads.",
+      "patterns": ["no web application firewall", "no ddos"],
+      "recommendation_hint_keywords": ["waf", "ddos"],
+      "practice": "RE05"
+    },
+    {
+      "id": "gap_limited_monitoring",
+      "label": "Limited monitoring and observability",
+      "detail": "Only basic Application Insights; lack of distributed tracing or synthetic checks.",
+      "patterns": ["limited monitoring", "application insights"],
+      "recommendation_hint_keywords": ["trace", "synthetic", "correlation"],
+      "practice": "RE10"
+    }
+  ]
+}
