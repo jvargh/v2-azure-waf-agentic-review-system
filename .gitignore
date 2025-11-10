@@ -157,6 +157,11 @@ cython_debug/
 *.swo
 *~
 
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+**/node_modules/
+
 # OS
 .DS_Store
 Thumbs.db
