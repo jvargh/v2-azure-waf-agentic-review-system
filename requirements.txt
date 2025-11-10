@@ -40,6 +40,10 @@ requests>=2.31.0
 orjson>=3.9.10  # Fast JSON processing
 jsonschema>=4.20.0  # JSON validation
 
+# Image processing and PDF handling
+Pillow>=10.0.0  # Image manipulation and thumbnail generation
+PyMuPDF>=1.23.0  # PDF rendering and thumbnail extraction
+
 # Model Context Protocol (MCP) Tools
 # Note: These are conceptual packages for MCP integration
 # mcp>=1.0.0  # MCP client (if available)

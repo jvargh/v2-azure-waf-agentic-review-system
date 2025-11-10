@@ -13,6 +13,8 @@ const pillars = [
 const AnalysisProgressTab: React.FC = () => {
   const { selected } = useAssessments();
   const enhancedProgress = selected?.enhancedProgress;
+  const [cohesiveExpanded, setCohesiveExpanded] = React.useState(false);
+  const [phaseDetailsExpanded, setPhaseDetailsExpanded] = React.useState(false);
   
   // Fallback to legacy progress calculation if enhanced progress not available
   const progress = enhancedProgress?.overall_progress ?? selected?.progress ?? 0;
@@ -273,19 +275,26 @@ const AnalysisProgressTab: React.FC = () => {
           {/* Cohesive Recommendations & Cross-Pillar Considerations (migrated from Scorecard) */}
           {selected.cohesiveRecommendations && selected.cohesiveRecommendations.length > 0 && (
             <div style={{ marginTop:'0.85rem', border:'1px solid #d0d7de', borderRadius:'6px', background:'#f6f8fa' }}>
-              <div style={{
-                padding:'.55rem .7rem',
-                display:'flex',
-                justifyContent:'space-between',
-                alignItems:'center',
-                background:'#f6f8fa',
-                borderBottom:'1px solid #d0d7de'
-              }}>
-                <span style={{ fontSize:'.7rem', fontWeight:600 }}>Cohesive Recommendations (Synthesis)</span>
+              <div 
+                onClick={() => setCohesiveExpanded(!cohesiveExpanded)}
+                style={{
+                  padding:'.55rem .7rem',
+                  display:'flex',
+                  justifyContent:'space-between',
+                  alignItems:'center',
+                  background:'#f6f8fa',
+                  borderBottom: cohesiveExpanded ? '1px solid #d0d7de' : 'none',
+                  cursor: 'pointer',
+                  userSelect: 'none'
+                }}>
+                <span style={{ fontSize:'.7rem', fontWeight:600 }}>
+                  {cohesiveExpanded ? '▼' : '▶'} Cohesive Recommendations (Synthesis)
+                </span>
                 <span style={{ fontSize:'.6rem', color:'#555' }}>{selected.cohesiveRecommendations.length} items</span>
               </div>
-              <div style={{ padding:'.6rem .75rem' }}>
-                {selected.cohesiveRecommendations.map((rec, idx) => (
+              {cohesiveExpanded && (
+                <div style={{ padding:'.6rem .75rem' }}>
+                  {selected.cohesiveRecommendations.map((rec, idx) => (
                   <div key={idx} style={{
                     background:'#fff',
                     border:'1px solid #e1e4e8',
@@ -299,7 +308,10 @@ const AnalysisProgressTab: React.FC = () => {
                         <span style={{
                           fontSize:'.55rem',
                           fontWeight:600,
-                          background:'#004bcc',
+                          background: rec.priority.toUpperCase() === 'CRITICAL' ? '#dc3545' : 
+                                      rec.priority.toUpperCase() === 'HIGH' ? '#ff8c00' : 
+                                      rec.priority.toUpperCase() === 'MEDIUM' ? '#ffa500' : 
+                                      rec.priority.toUpperCase() === 'LOW' ? '#28a745' : '#004bcc',
                           color:'#fff',
                           padding:'.15rem .4rem',
                           borderRadius:'3px'
@@ -326,25 +338,33 @@ const AnalysisProgressTab: React.FC = () => {
                       </div>
                     )}
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {/* Assessment Phase Details Panel */}
           <div style={{ marginTop:'1.1rem', border:'1px solid #e1e4e8', borderRadius:'6px', background:'#fff' }}>
-            <div style={{
-              padding:'.6rem .75rem',
-              borderBottom:'1px solid #e1e4e8',
-              background:'#f6f8fa',
-              display:'flex',
-              justifyContent:'space-between',
-              alignItems:'center'
-            }}>
-              <strong style={{ fontSize:'.7rem' }}>Assessment Phase Details</strong>
+            <div 
+              onClick={() => setPhaseDetailsExpanded(!phaseDetailsExpanded)}
+              style={{
+                padding:'.6rem .75rem',
+                borderBottom: phaseDetailsExpanded ? '1px solid #e1e4e8' : 'none',
+                background:'#f6f8fa',
+                display:'flex',
+                justifyContent:'space-between',
+                alignItems:'center',
+                cursor: 'pointer',
+                userSelect: 'none'
+              }}>
+              <strong style={{ fontSize:'.7rem' }}>
+                {phaseDetailsExpanded ? '▼' : '▶'} Assessment Phase Details
+              </strong>
               <span style={{ fontSize:'.55rem', color:'#555' }}>End-to-end agent activity summary</span>
             </div>
-            <div style={{ padding:'.65rem .85rem', fontSize:'.6rem', lineHeight:1.35 }}>
-              <div style={{ marginBottom:'.5rem' }}>
+            {phaseDetailsExpanded && (
+              <div style={{ padding:'.65rem .85rem', fontSize:'.6rem', lineHeight:1.35 }}>
+                <div style={{ marginBottom:'.5rem' }}>
                 <strong style={{ fontSize:'.6rem' }}>Initialization (0–5%)</strong>
                 <div>Environment prepared, documents registered, basic metadata captured.</div>
               </div>
@@ -408,7 +428,8 @@ const AnalysisProgressTab: React.FC = () => {
                   </div>
                 );
               })()}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -75,6 +75,7 @@ export const AssessmentsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       category: d.category as any,
       aiInsights: d.llm_analysis,
       analysisMetadata: d.analysis_metadata,
+      thumbnail_url: (d as any).thumbnail_url,
       raw_extracted_text: d.raw_extracted_text,
       diagram_summary: d.diagram_summary,
       structured_report: d.structured_report
@@ -159,6 +160,7 @@ export const AssessmentsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         raw_text: (d as any).raw_text,
         raw_extracted_text: (d as any).raw_extracted_text,
         diagram_summary: (d as any).diagram_summary,
+        thumbnail_url: (d as any).thumbnail_url,
         structured_report: (d as any).structured_report
       })),
       pillarScores: a.pillar_results?.map(pr => ({

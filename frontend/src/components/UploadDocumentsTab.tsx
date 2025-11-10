@@ -54,7 +54,32 @@ const UploadDocumentsTab: React.FC<Props> = ({ assessmentId, onStartAnalysis }: 
         {selected?.documents.length ? <h4 style={{ margin:'1.5rem 0 .75rem' }}>Uploaded Documents ({selected.documents.length})</h4> : null}
         {selected?.documents.map(d => (
           <div className="doc-row" key={d.id}>
-            <div style={{ display:'flex', flexDirection:'column' }}>
+            {d.thumbnail_url && (
+              <div style={{ 
+                width: '80px', 
+                height: '80px', 
+                marginRight: '0.75rem',
+                borderRadius: '4px',
+                overflow: 'hidden',
+                border: '1px solid #e1e4e8',
+                flexShrink: 0,
+                backgroundColor: '#f6f8fa',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <img 
+                  src={d.thumbnail_url} 
+                  alt={`Preview of ${d.filename}`}
+                  style={{ 
+                    maxWidth: '100%', 
+                    maxHeight: '100%',
+                    objectFit: 'contain'
+                  }}
+                />
+              </div>
+            )}
+            <div style={{ display:'flex', flexDirection:'column', flex: 1 }}>
               <strong style={{ fontSize:'.8rem' }}>{d.filename}</strong>
               <span style={{ fontSize:'.6rem', color:'#555' }}>{d.contentType}</span>
             </div>

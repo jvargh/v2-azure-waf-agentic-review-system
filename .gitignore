@@ -111,6 +111,21 @@ ENV/
 env.bak/
 venv.bak/
 
+# Expanded environment & secret patterns
+*.env
+*.env.*
+!.env.template
+!.env.example
+
+# Assessment output artifacts (optional; uncomment if you don't want to commit generated results)
+# results/
+
+# Backup / generated transient scoring state
+**/backup_transparent_scoring_*/
+
+# Secret scan reports
+secret-scan-report.*
+
 # Spyder project settings
 .spyderproject
 .spyproject

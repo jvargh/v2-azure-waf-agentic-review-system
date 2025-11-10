@@ -7,6 +7,7 @@ export interface DocumentItem {
   category: 'architecture' | 'case' | 'diagram';
   aiInsights?: string;
   analysisMetadata?: any;
+  thumbnail_url?: string;
   // Raw document content
   raw_text?: string;
   // Diagram enrichment fields (optional)

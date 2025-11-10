@@ -13,9 +13,22 @@ import datetime as dt
 import io
 import os
 import traceback
+import base64
 from pathlib import Path
 from typing import Dict, List, Optional, Any, TYPE_CHECKING
 from backend.utils.concepts import load_expected_concepts
+
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+
+try:
+    import fitz  # PyMuPDF
+    PYMUPDF_AVAILABLE = True
+except ImportError:
+    PYMUPDF_AVAILABLE = False
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -140,6 +153,8 @@ class Document(BaseModel):
     thematic_patterns: Optional[Any] = None  # Allow flexible shape (list or dict) to avoid early schema lock-in
     # structured_report: Flattened for frontend convenience (duplicates analysis_metadata.structured_report)
     structured_report: Optional[Dict[str, Any]] = None
+    # thumbnail_url: Base64 data URL for preview thumbnail
+    thumbnail_url: Optional[str] = None
     
     def model_dump(self, **kwargs):
         """Override to flatten structured_report from analysis_metadata for frontend."""
@@ -538,6 +553,81 @@ async def delete_document(aid: str, doc_id: str):
         return {"status": "deleted", "document_id": doc_id}
 
 
+def _generate_thumbnail(file_bytes: bytes, filename: str, content_type: str, category: str) -> Optional[str]:
+    """Generate a thumbnail preview for uploaded files.
+    Returns base64 data URL or None if thumbnail generation fails.
+    """
+    try:
+        # Image files (treat any common image extension regardless of category)
+        if PIL_AVAILABLE and any(filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp']):
+            try:
+                img = Image.open(io.BytesIO(file_bytes))
+            except Exception as e:
+                print(f"[_generate_thumbnail] Failed to open image {filename}: {e}")
+            else:
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    background = Image.new('RGB', img.size, (255, 255, 255))
+                    if img.mode == 'P':
+                        img = img.convert('RGBA')
+                    background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                    img = background
+                img.thumbnail((220, 220), Image.Resampling.LANCZOS)
+                buffer = io.BytesIO()
+                img.save(buffer, format='JPEG', quality=82)
+                b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                return f"data:image/jpeg;base64,{b64}"
+        
+        # PDF files
+        if PYMUPDF_AVAILABLE and filename.lower().endswith('.pdf'):
+            doc = fitz.open(stream=file_bytes, filetype="pdf")
+            if len(doc) > 0:
+                page = doc[0]
+                # Render first page at lower resolution for thumbnail
+                pix = page.get_pixmap(matrix=fitz.Matrix(0.5, 0.5))
+                img_bytes = pix.tobytes("jpeg")
+                b64 = base64.b64encode(img_bytes).decode('utf-8')
+                doc.close()
+                return f"data:image/jpeg;base64,{b64}"
+        
+        # SVG files - return the SVG itself as data URL
+        if filename.lower().endswith('.svg'):
+            svg_text = file_bytes.decode('utf-8', errors='ignore')
+            b64 = base64.b64encode(svg_text.encode('utf-8')).decode('utf-8')
+            return f"data:image/svg+xml;base64,{b64}"
+        
+        # Text/CSV files - create a simple text preview thumbnail
+        if category in ['architecture', 'case'] or any(ext in filename.lower() for ext in ['.txt', '.md', '.csv', '.doc', '.docx']):
+            text_preview = file_bytes.decode('utf-8', errors='ignore')[:800]
+            lines = [l.strip() for l in text_preview.split('\n') if l.strip()][:14]
+            preview_text = '\n'.join(lines) if lines else filename
+            if PIL_AVAILABLE:
+                from PIL import ImageDraw, ImageFont
+                img = Image.new('RGB', (220, 220), color='white')
+                draw = ImageDraw.Draw(img)
+                try:
+                    font = ImageFont.load_default()
+                except Exception:
+                    font = None
+                y = 6
+                for line in lines[:12]:
+                    truncated = (line[:34] + '…') if len(line) > 36 else line
+                    draw.text((6, y), truncated, fill=(20,20,20), font=font)
+                    y += 14
+                if not lines:
+                    draw.text((6, y), filename[:30], fill=(60,60,60), font=font)
+                buffer = io.BytesIO()
+                img.save(buffer, format='JPEG', quality=88)
+                b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                return f"data:image/jpeg;base64,{b64}"
+            else:
+                # Fallback: no PIL; return none so frontend shows no thumbnail
+                print(f"[_generate_thumbnail] PIL unavailable for text preview of {filename}")
+    
+    except Exception as e:
+        print(f"Thumbnail generation failed for {filename}: {e}")
+    
+    return None
+
 def _categorize(filename: str, content_type: str) -> str:
     if filename.endswith(".csv"):
         return "case"
@@ -567,6 +657,16 @@ async def upload_documents(aid: str, files: List[UploadFile] = File(...)):
         global DOC_COUNTER
         DOC_COUNTER += 1
         category = _categorize(uf.filename, uf.content_type or "")
+        
+        # Generate thumbnail
+        thumbnail_url = _generate_thumbnail(file_bytes, uf.filename, uf.content_type or "", category)
+        if thumbnail_url:
+            print(f"[thumbnail] Generated for {uf.filename} size={len(thumbnail_url)}")
+        else:
+            print(f"[thumbnail] None generated for {uf.filename} (category={category})")
+        
+        # Generate thumbnail
+        thumbnail_url = _generate_thumbnail(file_bytes, uf.filename, uf.content_type or "", category)
 
         analysis_result: Dict[str, Any] = {}
         llm_analysis: str = ""
@@ -693,7 +793,8 @@ async def upload_documents(aid: str, files: List[UploadFile] = File(...)):
             strategy=strategy,
             total_cases=total_cases,
             risk_signals=risk_signals,
-            thematic_patterns=thematic_patterns
+            thematic_patterns=thematic_patterns,
+            thumbnail_url=thumbnail_url
         )
         doc.setdefault("documents", []).append(d.model_dump())
         documents.append(d)
