@@ -1,5 +1,4 @@
-git clone <repository-url>
-# Azure Well-Architected Agents
+# Azure Well-Architected Agentic Review System - v2
 
 Enterprise-grade multi-pillar Azure architecture assessment with transparent scoring, intelligent document analysis, and comprehensive visualization.
 
