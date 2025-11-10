@@ -146,20 +146,23 @@ Generate Gap Recommendation:
 
 ## Rollback Instructions
 
-If issues occur, restore from backup:
+The legacy backup folder (`backup_transparent_scoring_YYYYMMDD_*`) has been removed to reduce repo size and duplication. Use Git history for rollback instead of .bak files.
 
 ```powershell
-cd C:\_Projects\MAF\wara\azure-well-architected-agents
-$backupDir = "backup_transparent_scoring_20251107_111438"
+# Example: restore previous version of backend/server.py and frontend components
+git log --oneline -- backend/server.py frontend/src/components/ResultsScorecardTab.tsx frontend/src/types.ts
 
-# Restore backend
-Copy-Item "$backupDir/server.py.bak" "backend/server.py" -Force
+# Checkout a prior commit (replace <commit> with the desired hash)
+git checkout <commit> -- backend/server.py frontend/src/components/ResultsScorecardTab.tsx frontend/src/types.ts
 
-# Restore frontend
-Copy-Item "$backupDir/ResultsScorecardTab.tsx.bak" "frontend/src/components/ResultsScorecardTab.tsx" -Force
-Copy-Item "$backupDir/types.ts.bak" "frontend/src/types.ts" -Force
+Write-Host "✓ Rollback via git history complete"
+```
 
-Write-Host "✓ Rollback complete"
+If you need a point-in-time snapshot before major scoring changes, create a lightweight tag first:
+
+```powershell
+git tag -a pre-transparent-scoring -m "State before transparent scoring implementation"
+git push origin pre-transparent-scoring
 ```
 
 ## Next Steps
