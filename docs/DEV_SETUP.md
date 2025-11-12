@@ -2,15 +2,16 @@
 
 ## Quick Start
 
-Run both backend and frontend with a single command:
+Start both services concurrently:
 
 ```powershell
 npm run dev
 ```
+Backend (FastAPI) and frontend (Vite) run in parallel.
 
-This starts:
-- **Backend** (FastAPI + MongoDB) on http://localhost:8000
-- **Frontend** (React + Vite) on http://localhost:3000
+Ports:
+- Backend: http://localhost:8000
+- Frontend: http://localhost:3000
 
 Press `Ctrl+C` to stop both processes.
 
@@ -47,26 +48,26 @@ npm run frontend
 
 ## Connection Status
 
-The frontend now includes a live connection indicator (top-right corner):
-- **Green "Backend Connected"**: API calls will succeed
-- **Red "Backend Disconnected"**: Check backend logs or restart `npm run dev`
+Top‑right badge:
+- Green "Connected": API reachable
+- Red "Offline" / "Reconnecting": Backend not responding (check terminal or visit http://localhost:8000/api/health)
 
-Click the badge to manually recheck connection.
+Click badge to recheck immediately.
 
 ## Troubleshooting
 
 ### Backend won't start
-- Ensure Python venv is set up: `.\venv\Scripts\Activate.ps1`
-- Install motor: `pip install motor`
+- Activate venv: `\.\venv\Scripts\Activate.ps1`
+- Install deps: `pip install -r requirements.txt`
 
 ### Frontend shows backend disconnected
 - Verify backend logs in terminal (cyan-prefixed lines)
-- Check http://localhost:8000/health in browser
+- Check http://localhost:8000/api/health in browser (should return JSON with `mongo_connected`)
 
 ### Port conflicts
 - Backend uses port 8000
 - Frontend uses port 3000
-- Change ports in `package.json` if needed
+- Change ports in `package.json` if needed.
 
 ## Project Structure
 

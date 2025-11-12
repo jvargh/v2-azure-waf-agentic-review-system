@@ -14,13 +14,23 @@ const ConnectionStatus: React.FC<Props> = ({ variant = 'floating' }) => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000); // Increased from 3s to 8s
       
-      const res = await fetch(`${BASE}/health`, { 
+      const res = await fetch(`${BASE}/api/health`, { 
         signal: controller.signal,
         cache: 'no-store'
       });
       
       clearTimeout(timeout);
       if (res.ok) {
+        try {
+          const data = await res.json();
+          // If backend returns status ok but mongo not connected, still treat as connected (API reachable)
+          // but could append future differentiation.
+          if (data && typeof data.mongo_connected === 'boolean' && !data.mongo_connected) {
+            console.warn('[connection] Backend reachable but mongo not connected (in-memory mode)');
+          }
+        } catch {
+          // Non-JSON health response is unexpected; still consider reachable.
+        }
         setStatus('connected');
         setConsecutiveFailures(0);
       } else {
@@ -28,7 +38,8 @@ const ConnectionStatus: React.FC<Props> = ({ variant = 'floating' }) => {
         setStatus(consecutiveFailures >= 2 ? 'disconnected' : 'reconnecting');
       }
       setLastCheck(new Date());
-    } catch {
+    } catch (e) {
+      console.error('[connection] Health check failed', e);
       setConsecutiveFailures(prev => prev + 1);
       // Only show as disconnected after 2 consecutive failures (reduces false alarms during reload)
       setStatus(consecutiveFailures >= 1 ? 'disconnected' : 'reconnecting');

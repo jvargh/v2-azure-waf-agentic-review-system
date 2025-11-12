@@ -1,0 +1,47 @@
+.waf-link {
+  position: relative;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+.waf-link:hover, .waf-link:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.waf-link::after {
+  content: '↗';
+  font-size: 0.55rem;
+  margin-left: 4px;
+  opacity: 0.65;
+  position: relative;
+  top: -1px;
+  aria-hidden: true;
+}
+.waf-link:focus-visible {
+  outline: 2px solid #0B5FFF55;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Do not show external icon on pillar headings to save horizontal space */
+h3 > .waf-link::after,
+.score-card h3 > .waf-link::after,
+.recs h5 > .waf-link::after,
+.score-card .waf-link.pillar-link::after {
+  content: '';
+  display: none;
+}
+
+/* Prevent wrapping for long pillar names + badge */
+.score-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.score-card h3 span[title] { /* confidence badge */
+  flex-shrink: 0;
+}

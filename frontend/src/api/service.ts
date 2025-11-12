@@ -27,15 +27,33 @@ export interface AssessmentApi {
 }
 
 // Vite injects import.meta.env; cast to any to avoid TS complaints if types not picked up.
-const BASE = (((import.meta as any).env?.VITE_API_BASE) as string) || 'http://localhost:8000';
+const BASE: string = (((import.meta as any).env?.VITE_API_BASE) as string) || 'http://localhost:8000';
+// One-time BASE log
+if (typeof window !== 'undefined' && !(window as any).__API_BASE_LOGGED) {
+  console.info('[api] BASE', BASE);
+  (window as any).__API_BASE_LOGGED = true;
+}
 
 async function j(method: string, path: string, body?: any): Promise<any> {
   const url = `${BASE}${path}`;
-  const res = await fetch(url, {
-    method,
-    headers: body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
-    body: body ? (body instanceof FormData ? body : JSON.stringify(body)) : undefined
-  });
+  console.debug('[api] begin', method, url);
+  let res: Response;
+  try {
+    const headers: Record<string, string> = {};
+    if (body && !(body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
+    res = await fetch(url, {
+      method,
+      headers,
+      body: body ? (body instanceof FormData ? body : JSON.stringify(body)) : undefined,
+      mode: 'cors'
+    });
+  } catch (networkErr: any) {
+    console.error('[api] Network error', { method, url, error: networkErr?.name, message: networkErr?.message });
+    throw new Error(`NETWORK ${method} ${path} failed: ${networkErr?.message || networkErr}`);
+  }
+  console.debug('[api] resp', method, res.status, url);
   if (!res.ok) {
     let extra = '';
     try {
@@ -49,9 +67,15 @@ async function j(method: string, path: string, body?: any): Promise<any> {
     } catch (e) {
       // ignore parse errors
     }
+    console.warn('[api] HTTP error', { method, path, status: res.status, details: extra });
     throw new Error(`${method} ${path} failed: ${res.status}${extra ? ' - ' + extra : ''}`);
   }
-  return res.json();
+  try {
+    return await res.json();
+  } catch (e: any) {
+    console.error('[api] JSON parse failed', { method, url, error: e?.message });
+    throw new Error(`PARSE ${method} ${path} failed: ${e?.message || e}`);
+  }
 }
 
 export const api = {

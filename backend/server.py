@@ -366,18 +366,49 @@ class QuickAssessmentResponse(BaseModel):
 
 
 app = FastAPI(title="Well-Architected Backend", version="0.2.0")
+
+# Relaxed CORS (no credentials) for troubleshooting network fetch failures.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def _log_requests(request, call_next):
+    if request.url.path.startswith("/api/assessments"):
+        print(f"[req] {request.method} {request.url.path} origin={request.headers.get('origin')} ct={request.headers.get('content-type')}")
+    return await call_next(request)
 
 # Import and include progress API router
 from backend.app.progress_api import progress_api, set_mongo_db, set_assessments_store
 
 app.include_router(progress_api)
+
+# Simple health endpoint for connectivity & persistence diagnostics
+@app.get("/api/health")
+async def health():
+    global mongo_db
+    mongo_status = False
+    error: str | None = None
+    try:
+        if mongo_db is not None:
+            try:
+                await mongo_db.command("ping")
+                mongo_status = True
+            except Exception as e:  # pragma: no cover - transient
+                error = f"mongo_ping_failed: {e.__class__.__name__}: {e}"[:300]
+    except Exception as e:  # pragma: no cover
+        error = f"health_exception: {e.__class__.__name__}: {e}"[:300]
+    return {
+        "status": "ok",
+        "mongo_connected": mongo_status,
+        "mongo_db": os.getenv("MONGO_DB", "well_architected"),
+        "using_in_memory": mongo_status is False,
+        "error": error,
+    }
 
 
 def _new_id(prefix: str) -> str:

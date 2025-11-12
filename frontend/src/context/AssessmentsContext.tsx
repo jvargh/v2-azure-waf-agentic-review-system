@@ -89,10 +89,15 @@ export const AssessmentsProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   async function fetchEnhancedProgress(id: string) {
     try {
-      const response = await fetch(`/api/assessments/${id}/progress`);
+      // Use same BASE as other API calls to avoid origin mismatch in dev
+      const base = ((import.meta as any).env?.VITE_API_BASE) || 'http://localhost:8000';
+      const response = await fetch(`${base}/api/assessments/${id}/progress`);
       if (response.ok) {
         const enhancedProgress = await response.json();
         return enhancedProgress;
+      } else {
+        // Surface non-OK for debugging
+        console.warn('Progress fetch non-OK', response.status);
       }
     } catch (err) {
       console.error('Failed to fetch enhanced progress:', err);

@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useAssessments } from '../context/AssessmentsContext';
 import { PillarScore, Recommendation } from '../types';
 import * as XLSX from 'xlsx';
+import { AZURE_WAF_PILLAR_LINKS, getWafLink } from '../constants/wafLinks';
+import '../styles/wafLinks.css';
 
 const ResultsScorecardTab: React.FC = () => {
   const { selected, refresh } = useAssessments();
@@ -126,7 +128,13 @@ const ResultsScorecardTab: React.FC = () => {
     return (
       <>
         Each pillar is evaluated across multiple subcategories. 
-        For example, <strong>Reliability</strong> includes{' '}
+        For example, <a
+          href={AZURE_WAF_PILLAR_LINKS.Reliability}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Open Azure Well-Architected Reliability documentation (opens in new tab)"
+          className="waf-link"
+        ><strong>Reliability</strong></a> includes{' '}
         {exampleSubcats.map((c: any, idx: number) => (
           <span key={idx}>
             "{c.name}" ({c.score}){idx < exampleSubcats.length - 1 ? ', ' : ''}
@@ -604,11 +612,20 @@ const ResultsScorecardTab: React.FC = () => {
               return (
                 <div key={pillar.pillar} className="score-card">
                   <h3>
-                    {pillar.pillar}
+                    <a
+                      href={AZURE_WAF_PILLAR_LINKS[pillar.pillar as keyof typeof AZURE_WAF_PILLAR_LINKS]}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Open Azure Well-Architected ${pillar.pillar} documentation (opens in new tab)`}
+                      className="waf-link pillar-link"
+                      style={{ color:'#24292e' }}
+                    >
+                      {pillar.pillar}
+                    </a>
                     <span 
                       title={confidenceTooltip}
                       style={{ 
-                        marginLeft: '.5rem',
+                        marginLeft: '.15rem',
                         padding: '.15rem .4rem',
                         backgroundColor: confidenceColor,
                         color: 'white',
@@ -716,7 +733,16 @@ const ResultsScorecardTab: React.FC = () => {
                     border:'1px solid #ffeaa7'
                   }}>
                     <div style={{ fontSize:'.8rem', fontWeight:600, color:'#856404', marginBottom:'.5rem' }}>
-                      {pillar.pillar} {pillar.normalizationApplied && (
+                      <a
+                        href={AZURE_WAF_PILLAR_LINKS[pillar.pillar as keyof typeof AZURE_WAF_PILLAR_LINKS]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open Azure Well-Architected ${pillar.pillar} documentation (opens in new tab)`}
+                        className="waf-link"
+                        style={{ color:'#856404' }}
+                      >
+                        {pillar.pillar}
+                      </a> {pillar.normalizationApplied && (
                         <span style={{ fontSize:'.7rem', fontWeight:400 }}>
                           (Normalized from {pillar.rawSubcategorySum} → {pillar.overallScore ?? pillar.score})
                         </span>
@@ -894,7 +920,19 @@ const ResultsScorecardTab: React.FC = () => {
                     onClick={toggle}
                     style={{ cursor:'pointer', padding:'.6rem .75rem', background:'#f6f8fa', display:'flex', justifyContent:'space-between', alignItems:'center' }}
                   >
-                    <span style={{ fontSize:'.75rem', fontWeight:600, color:'#0078d4' }}>{expanded ? '▼' : '▶'} {pillar.pillar}</span>
+                    <span style={{ fontSize:'.75rem', fontWeight:600, color:'#0078d4' }}>
+                      {expanded ? '▼' : '▶'}{' '}
+                      <a
+                        href={AZURE_WAF_PILLAR_LINKS[pillar.pillar as keyof typeof AZURE_WAF_PILLAR_LINKS]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open Azure Well-Architected ${pillar.pillar} documentation (opens in new tab)`}
+                        className="waf-link"
+                        style={{ color:'#0078d4' }}
+                      >
+                        {pillar.pillar}
+                      </a>
+                    </span>
                     <span style={{ fontSize:'.55rem', color:'#555' }}>{entries.length} subcategories</span>
                   </div>
                   {expanded && (
@@ -1071,7 +1109,17 @@ const ResultsScorecardTab: React.FC = () => {
                     }}
                   >
                     <h5 style={{ margin:0, fontSize:'.85rem', color:'#0078d4', fontWeight:600 }}>
-                      {pillarExpanded ? '▼' : '▶'} {pillar.pillar} ({pillarRecs.length} recommendation{pillarRecs.length > 1 ? 's' : ''})
+                      {pillarExpanded ? '▼' : '▶'}{' '}
+                      <a
+                        href={AZURE_WAF_PILLAR_LINKS[pillar.pillar as keyof typeof AZURE_WAF_PILLAR_LINKS]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open Azure Well-Architected ${pillar.pillar} documentation (opens in new tab)`}
+                        className="waf-link"
+                        style={{ color:'#0078d4' }}
+                      >
+                        {pillar.pillar}
+                      </a>{' '}({pillarRecs.length} recommendation{pillarRecs.length > 1 ? 's' : ''})
                     </h5>
                   </div>
                   {pillarExpanded && (
@@ -1085,91 +1133,7 @@ const ResultsScorecardTab: React.FC = () => {
                     const recommendation = reasoning || (rec as any).recommendation || rec.details || 'No recommendation available';
                     const source = rec.source || 'Unknown Subcategory';
                     
-                    // Azure Learn URL mapping for Well-Architected subcategories
-                    const azureDocsMap: Record<string, string> = {
-                      // Reliability
-                      'Reliability-Focused Design Foundations': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/simplify',
-                      'Identify and Rate User and System Flows': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/identify-flows',
-                      'Perform Failure Mode Analysis (FMA)': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/failure-mode-analysis',
-                      'Define Reliability and Recovery Targets': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/metrics',
-                      'Add Redundancy at Different Levels': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/redundancy',
-                      'Implement a Timely and Reliable Scaling Strategy': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/scaling',
-                      'Strengthen Resiliency with Self-Preservation and Self-Healing': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/self-preservation',
-                      'Test for Resiliency and Availability Scenarios': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/testing-strategy',
-                      'Implement Structured, Tested, and Documented Disaster Plans': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/disaster-recovery',
-                      'Implement Structured, Tested, and Documented BCDR Plans': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/disaster-recovery',
-                      'Measure and Model the Solution\'s Health Indicators': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/monitoring',
-                      // Reliability - Normalized backend names
-                      'Simplicity & Efficiency': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/principles',
-                      'Flow Identification & Criticality': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/identify-flows',
-                      'Failure Mode Analysis': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/failure-mode-analysis',
-                      'Reliability & Recovery Targets': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/metrics',
-                      'Redundancy': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/redundancy',
-                      'Scaling Strategy': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/scaling',
-                      'Self-Healing & Resilience Patterns': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/self-preservation',
-                      'Resiliency & Chaos Testing': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/testing-strategy',
-                      'BCDR Planning': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/disaster-recovery',
-                      'Health Indicators & Monitoring': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/monitoring',
-                      // Security
-                      'Establish a Security Baseline': 'https://learn.microsoft.com/en-us/azure/well-architected/security/establish-baseline',
-                      'Maintain a Secure Development Lifecycle': 'https://learn.microsoft.com/en-us/azure/well-architected/security/secure-development-lifecycle',
-                      'Classify and Label Data Sensitivity': 'https://learn.microsoft.com/en-us/azure/well-architected/security/data-classification',
-                      'Create Intentional Segmentation and Perimeters': 'https://learn.microsoft.com/en-us/azure/well-architected/security/segmentation',
-                      'Implement Conditional Identity and Access Management': 'https://learn.microsoft.com/en-us/azure/well-architected/security/identity-access',
-                      'Isolate, Filter, and Control Network Traffic': 'https://learn.microsoft.com/en-us/azure/well-architected/security/segmentation',
-                      'Encrypt Data with Modern Methods': 'https://learn.microsoft.com/en-us/azure/well-architected/security/encryption',
-                      'Harden Workload Components': 'https://learn.microsoft.com/en-us/azure/well-architected/security/harden-resources',
-                      'Protect Application Secrets': 'https://learn.microsoft.com/en-us/azure/well-architected/security/application-secrets',
-                      'Establish a Comprehensive Security Testing Regimen': 'https://learn.microsoft.com/en-us/azure/well-architected/security/test',
-                      'Implement Holistic Threat Detection and Monitoring': 'https://learn.microsoft.com/en-us/azure/well-architected/security/monitor-threats',
-                      'Define and Exercise Incident Response Procedures': 'https://learn.microsoft.com/en-us/azure/well-architected/security/incident-response',
-                      // Operational Excellence
-                      'Define standard practices to develop and operate workload': 'https://learn.microsoft.com/en-us/azure/well-architected/operational-excellence/formalize-development-practices',
-                      'Formalize operational tasks': 'https://learn.microsoft.com/en-us/azure/well-architected/operational-excellence/formalize-operations-tasks',
-                      'Formalize software ideation and planning': 'https://learn.microsoft.com/en-us/azure/well-architected/operational-excellence/formalize-software-ideation',
-                      'Enhance software development and quality assurance': 'https://learn.microsoft.com/en-us/azure/well-architected/operational-excellence/formalize-development-practices',
-                      'Use infrastructure as code': 'https://learn.microsoft.com/en-us/azure/well-architected/operational-excellence/infrastructure-as-code-design',
-                      'Build workload supply chain with pipelines': 'https://learn.microsoft.com/en-us/azure/well-architected/operational-excellence/release-engineering-continuous-integration',
-                      'Establish structured incident management': 'https://learn.microsoft.com/en-us/azure/well-architected/operational-excellence/incident-response',
-                      'Automate repetitive tasks': 'https://learn.microsoft.com/en-us/azure/well-architected/operational-excellence/automate-tasks',
-                      'Expand Observability and Operational Monitoring': 'https://learn.microsoft.com/en-us/azure/well-architected/operational-excellence/observability',
-                      // Cost Optimization
-                      'Create a culture of financial responsibility': 'https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/culture',
-                      'Create and maintain a cost model': 'https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/cost-model',
-                      'Collect and review cost data': 'https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/collect-review-cost-data',
-                      'Set spending guardrails': 'https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/set-spending-guardrails',
-                      'Get the best rates from providers': 'https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/get-best-rates',
-                      'Align usage to billing increments': 'https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/align-usage-to-billing-increments',
-                      'Optimize component costs': 'https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/optimize-component-costs',
-                      'Optimize environment costs': 'https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/optimize-environment-costs',
-                      'Optimize flow costs': 'https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/optimize-flow-costs',
-                      'Optimize data costs': 'https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/optimize-data-costs',
-                      'Optimize code costs': 'https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/optimize-code-costs',
-                      'Optimize scaling costs': 'https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/optimize-scaling-costs',
-                      'Optimize personnel time': 'https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/optimize-personnel-time',
-                      'Consolidate resources and responsibility': 'https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/consolidation',
-                      // Performance Efficiency
-                      'Performance Targets & SLIs/SLOs': 'https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/performance-targets',
-                      'Capacity & Demand Planning': 'https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/capacity-planning',
-                      'Service & Architecture Selection': 'https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/select-services',
-                      'Data Collection & Telemetry': 'https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/collect-performance-data',
-                      'Performance Testing & Benchmarking': 'https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/performance-test',
-                      'Code & Runtime Optimization': 'https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/optimize-code-infrastructure',
-                      'Data Usage Optimization': 'https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/optimize-data-performance',
-                      'Critical Flow Optimization': 'https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/prioritize-critical-flows',
-                      'Operational Load Efficiency': 'https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/respond-live-performance-issues',
-                      'Live Issue Triage & Remediation': 'https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/respond-live-performance-issues',
-                      'Continuous Optimization & Feedback Loop': 'https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/continuous-performance-optimize',
-                      // Additional mapping for normalized agent titles
-                      'Implement Proactive Scaling and Partitioning Strategy': 'https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/optimize-scaling-costs',
-                      // Pillar-level fallbacks for edge cases
-                      'Reliability Best Practices': 'https://learn.microsoft.com/en-us/azure/well-architected/reliability/',
-                      'Security Best Practices': 'https://learn.microsoft.com/en-us/azure/well-architected/security/',
-                      'Cost Optimization Best Practices': 'https://learn.microsoft.com/en-us/azure/well-architected/cost-optimization/',
-                      'Operational Excellence Best Practices': 'https://learn.microsoft.com/en-us/azure/well-architected/operational-excellence/',
-                      'Performance Efficiency Best Practices': 'https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/'
-                    };
-                    const sourceUrl = azureDocsMap[source] || null;
+                    const sourceUrl = getWafLink(source) || null;
                     
                     return (
                       <div key={idx} className="rec-card" style={{ marginBottom:'.75rem', position: 'relative' }}>
@@ -1202,10 +1166,16 @@ const ResultsScorecardTab: React.FC = () => {
                             <div style={{ marginTop:'.35rem', color:'#555' }}>
                               <strong>Effort:</strong> {rec.effort} {' | '} <strong>Source:</strong>{' '}
                               {sourceUrl ? (
-                                <a href={sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color:'#0078d4', textDecoration:'underline' }}>{source}</a>
-                              ) : (
-                                source
-                              )}
+                                <a
+                                  href={sourceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  aria-label={`Open Azure Well-Architected guidance for ${source} (opens in new tab)`}
+                                  className="waf-link"
+                                >
+                                  {source}
+                                </a>
+                              ) : source}
                             </div>
                           </div>
                         </div>
