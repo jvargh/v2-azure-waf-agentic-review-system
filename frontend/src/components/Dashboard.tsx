@@ -50,7 +50,7 @@ const Dashboard: React.FC<Props> = ({ onOpenAssessment }: Props) => {
             fontWeight: 400,
             margin: '0',
             letterSpacing: '0'
-          }}>Azure Well-Architected Agentic Review</h1>
+          }}>Azure Well-Architected Agentic Review System</h1>
         </div>
         <p style={{
           color: 'rgba(255,255,255,0.9)',
@@ -81,7 +81,7 @@ const Dashboard: React.FC<Props> = ({ onOpenAssessment }: Props) => {
           onMouseOver={(e) => e.currentTarget.style.background = '#106ebe'}
           onMouseOut={(e) => e.currentTarget.style.background = '#0078d4'}
         >
-          + New Well-Architected Review
+          + New Well-Architected Assessment
         </button>
       </div>
 
@@ -181,13 +181,13 @@ const Dashboard: React.FC<Props> = ({ onOpenAssessment }: Props) => {
         </div>
       </div>
 
-      {/* Recent Reviews Section */}
+      {/* Recent Assessments Section */}
       <h2 style={{ 
         fontSize: '1.1rem', 
         fontWeight: 600, 
         margin: '0 0 0.75rem',
         color: '#1a1a1a'
-      }}>Recent Reviews</h2>
+      }}>Recent Assessments</h2>
       {assessments.length === 0 && (
         <div className="card" style={{ 
           textAlign: 'center', 

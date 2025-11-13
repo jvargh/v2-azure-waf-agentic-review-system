@@ -810,7 +810,7 @@ You feel confident that you now have a clear, data-driven understanding of your 
 
 STEP 0: Empty Dashboard
 
-↓ Click \"+ New Well-Architected Review\"
+↓ Click \"+ New Well-Architected Assessment\"
 
 STEP 1: Create Assessment Form
 
