@@ -25,7 +25,7 @@ Enterprise-grade multi-pillar Azure architecture assessment with transparent sco
 13. [Contributing](#13-contributing)
 
 ## 1. Overview
-<a href="https://youtu.be/Mc2Q8MxwVws" target="_blank" rel="noopener noreferrer">🎥 Watch Demo</a>
+<a href="https://youtu.be/EO3PCzCybJs" target="_blank" rel="noopener noreferrer">🎥 Watch Demo</a>
 
 The **Azure Well-Architected Agents** platform provides automated, intelligent assessment of Azure architectures across five Well-Architected Framework pillars:
 - **Reliability** (RE01–RE10) – Resiliency, redundancy, disaster recovery
